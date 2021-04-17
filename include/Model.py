@@ -282,8 +282,9 @@ def get_neg(ILL, cand_ent_list, other_ILL, output_layer, k):
         for j in rank[0:k+1]:
             if cand_ent_list[j] != other_ILL[i]:
                 neg.append(cand_ent_list[j])
-        if len(neg) == k + 1:
+        if len(neg) == (i + 1) * k + 1:
             neg = neg[:-1]
+    print(len(neg))
     neg = np.array(neg)
     neg = neg.reshape((t * k,))
     print('<<<' + 'get_neg_done')
@@ -300,17 +301,21 @@ def training(output_layer, loss, learning_rate, epochs, ILL, k, test, all_ent1_l
     J = []
     ILL = np.array(ILL)
     t = len(ILL)
-    ILL_L = ILL[:, 0]
-    ILL_R = ILL[:, 1]
+    ILL_L_BASE = ILL[:, 0]
+    ILL_R_BASE = ILL[:, 1]
+    ILL_L = np.array(ILL_L_BASE)
+    ILL_R = np.array(ILL_R_BASE)
     labeled_alignment = set()
     ents1 = []
     ents2 = []
 
     for i in range(epochs):
         # train pair init
+        print(len(ents1))
+        print(len(ents2))
         if len(ents1) != 0:
-            ILL_L = np.append(ILL_L, np.array(ents1))
-            ILL_R = np.append(ILL_R, np.array(ents2))
+            ILL_L = np.append(ILL_L_BASE, np.array(ents1))
+            ILL_R = np.append(ILL_R_BASE, np.array(ents2))
         print('>>>' + 'new_epoch')
         t = ILL_R.shape[0]
         L = np.ones((t, k)) * ILL_L.reshape((t, 1))
