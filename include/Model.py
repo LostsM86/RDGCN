@@ -267,24 +267,30 @@ def build(dimension, act_func, alpha, beta, gamma, k, lang, e, KG):
 
 
 # get negative samples
-def get_neg(ILL, output_layer, k):
+def get_neg(ILL, cand_ent_list, other_ILL, output_layer, k):
+    # ILL_R, all_ent1_list,  ILL_L, out, k)
     print('>>>' + 'get_neg')
     neg = []
     t = len(ILL)
     ILL_vec = np.array([output_layer[e1] for e1 in ILL])
-    KG_vec = np.array(output_layer)
-    sim = scipy.spatial.distance.cdist(ILL_vec, KG_vec, metric='cityblock')
+    other_ILL_vec = np.array([output_layer[e1] for e1 in cand_ent_list])
+    sim = scipy.spatial.distance.cdist(ILL_vec, other_ILL_vec, metric='cityblock')
+    # KG_vec = np.array(output_layer)
+    # sim = scipy.spatial.distance.cdist(ILL_vec, KG_vec, metric='cityblock')
     for i in range(t):
         rank = sim[i, :].argsort()
-        neg.append(rank[0:k])
-
+        for j in rank[0:k+1]:
+            if cand_ent_list[j] != other_ILL[i]:
+                neg.append(cand_ent_list[j])
+        if len(neg) == k + 1:
+            neg = neg[:-1]
     neg = np.array(neg)
     neg = neg.reshape((t * k,))
     print('<<<' + 'get_neg_done')
     return neg
 
 
-def training(output_layer, loss, learning_rate, epochs, ILL, k, test, ref_ent1_list, ref_ent2_list):
+def training(output_layer, loss, learning_rate, epochs, ILL, k, test, all_ent1_list, all_ent2_list, ref_ent1_list, ref_ent2_list):
     train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
     print('initializing...')
     init = tf.global_variables_initializer()
@@ -314,8 +320,8 @@ def training(output_layer, loss, learning_rate, epochs, ILL, k, test, ref_ent1_l
 
         if i % 10 == 0:
             out = sess.run(output_layer)
-            neg2_left = get_neg(ILL_L, out, k)
-            neg_right = get_neg(ILL_R, out, k)
+            neg2_left = get_neg(ILL_R, all_ent1_list, ILL_L, out, k)
+            neg_right = get_neg(ILL_L, all_ent2_list, ILL_R, out, k)
             feeddict = {"neg_left:0": neg_left,
                         "neg_right:0": neg_right,
                         "neg2_left:0": neg2_left,
@@ -327,7 +333,7 @@ def training(output_layer, loss, learning_rate, epochs, ILL, k, test, ref_ent1_l
         _, th = sess.run([train_step, loss], feed_dict=feeddict)
         print('*****', '%d/%d' % (i, epochs), 'epochs --- loss: ', th)
 
-        if (i - 1) % 10 == 0:
+        if (i + 1) % 10 == 0:
             print('>>>>' + 'run')
             th, outvec = sess.run([loss, output_layer], feed_dict=feeddict)
             J.append(th)
