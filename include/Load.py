@@ -13,3 +13,7 @@ def loadfile(fn, num=1):
                 x.append(int(th[i]))
             ret.append(tuple(x))
     return ret
+
+def get_ent_list(pair):
+    nppair = np.array([list(i) for i in pair])
+    return nppair[:, 0], nppair[:, 1]

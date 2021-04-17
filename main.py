@@ -7,6 +7,8 @@ from include.Load import *
 import warnings
 warnings.filterwarnings("ignore")
 
+import functools
+print = functools.partial(print, flush=True)
 '''
 Follow the code style of GCN-Align:
 https://github.com/1049451037/GCN-Align
@@ -24,14 +26,15 @@ if __name__ == '__main__':
     np.random.shuffle(ILL)
     train = np.array(ILL[:illL // 10 * Config.seed])
     test = ILL[illL // 10 * Config.seed:]
+    ref_ent1_list, ref_ent2_list = get_ent_list(test)
 
     KG1 = loadfile(Config.kg1, 3)
     KG2 = loadfile(Config.kg2, 3)
 
     output_layer, loss = build(
-        Config.dim, Config.act_func, Config.alpha, Config.beta, Config.gamma, Config.k, Config.language[0:2], e, train, KG1 + KG2)
+        Config.dim, Config.act_func, Config.alpha, Config.beta, Config.gamma, Config.k, Config.language[0:2], e, KG1 + KG2)
     vec, J = training(output_layer, loss, 0.001,
-                      Config.epochs, train, e, Config.k, test)
+                      Config.epochs, train, Config.k, test, ref_ent1_list, ref_ent2_list)
     print('loss:', J)
     print('Result:')
     get_hits(vec, test)

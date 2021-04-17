@@ -1,6 +1,8 @@
 import numpy as np
 import scipy
 
+import functools
+print = functools.partial(print, flush=True)
 
 def get_hits(vec, test_pair, top_k=(1, 10, 50, 100)):
     Lvec = np.array([vec[e1] for e1, e2 in test_pair])

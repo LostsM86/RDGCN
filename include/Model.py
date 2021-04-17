@@ -1,8 +1,14 @@
 import math
 from .Init import *
 from include.Test import get_hits
+from include.bootstrap import *
 import scipy
 import json
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
+import functools
+print = functools.partial(print, flush=True)
 
 
 def rfunc(KG, e):
@@ -98,7 +104,7 @@ def add_full_layer(inlayer, dimension_in, dimension_out, M, act_func, dropout=0.
         return act_func(tosum)
 
 
-def add_sparse_att_layer(inlayer, dual_layer, r_mat, act_func, e):
+def add_sparse_att_layer(inlayer, dual_layer, r_mat, act_func):
     dual_transform = tf.reshape(tf.layers.conv1d(
         tf.expand_dims(dual_layer, 0), 1, 1), (-1, 1))
     logits = tf.reshape(tf.nn.embedding_lookup(
@@ -135,7 +141,7 @@ def add_dual_att_layer(inlayer, inlayer2, adj_mat, act_func, hid_dim):
 
 def add_self_att_layer(inlayer, adj_mat, act_func, hid_dim):
     in_fts = tf.layers.conv1d(tf.expand_dims(
-        inlayer, 0), hid_dim, 1, use_bias=False)
+        inlayer, 0), hid_dim, 1, use_bias=False)        # 1 * r_num * 2dim
     f_1 = tf.reshape(tf.layers.conv1d(in_fts, 1, 1), (-1, 1))
     f_2 = tf.reshape(tf.layers.conv1d(in_fts, 1, 1), (-1, 1))
     logits = f_1 + tf.transpose(f_2)
@@ -195,33 +201,37 @@ def get_input_layer(e, dimension, lang):
     return tf.nn.l2_normalize(ent_embeddings, 1)
 
 
-def get_loss(outlayer, ILL, gamma, k):
+def get_loss(outlayer, gamma, k):
     print('getting loss...')
-    left = ILL[:, 0]
-    right = ILL[:, 1]
-    t = len(ILL)
+    left = tf.placeholder(tf.int32, [None], "ILL_left")
+    right = tf.placeholder(tf.int32, [None], "ILL_right")
+    # left = ILL[:, 0]
+    # right = ILL[:, 1]
+    t = tf.shape(left)[0]
+    # t = len(ILL)
     left_x = tf.nn.embedding_lookup(outlayer, left)
     right_x = tf.nn.embedding_lookup(outlayer, right)
     A = tf.reduce_sum(tf.abs(left_x - right_x), 1)
-    neg_left = tf.placeholder(tf.int32, [t * k], "neg_left")
-    neg_right = tf.placeholder(tf.int32, [t * k], "neg_right")
+    neg_left = tf.placeholder(tf.int32, [None], "neg_left")
+    neg_right = tf.placeholder(tf.int32, [None], "neg_right")
     neg_l_x = tf.nn.embedding_lookup(outlayer, neg_left)
     neg_r_x = tf.nn.embedding_lookup(outlayer, neg_right)
     B = tf.reduce_sum(tf.abs(neg_l_x - neg_r_x), 1)
     C = - tf.reshape(B, [t, k])
     D = A + gamma
     L1 = tf.nn.relu(tf.add(C, tf.reshape(D, [t, 1])))
-    neg_left = tf.placeholder(tf.int32, [t * k], "neg2_left")
-    neg_right = tf.placeholder(tf.int32, [t * k], "neg2_right")
+    neg_left = tf.placeholder(tf.int32, [None], "neg2_left")
+    neg_right = tf.placeholder(tf.int32, [None], "neg2_right")
     neg_l_x = tf.nn.embedding_lookup(outlayer, neg_left)
     neg_r_x = tf.nn.embedding_lookup(outlayer, neg_right)
     B = tf.reduce_sum(tf.abs(neg_l_x - neg_r_x), 1)
     C = - tf.reshape(B, [t, k])
     L2 = tf.nn.relu(tf.add(C, tf.reshape(D, [t, 1])))
-    return (tf.reduce_sum(L1) + tf.reduce_sum(L2)) / (2.0 * k * t)
+    t = tf.cast(t, tf.float32)
+    return tf.div(tf.reduce_sum(L1) + tf.reduce_sum(L2), (2.0 * k * t))
 
 
-def build(dimension, act_func, alpha, beta, gamma, k, lang, e, ILL, KG):
+def build(dimension, act_func, alpha, beta, gamma, k, lang, e, KG):
     tf.reset_default_graph()
     primal_X_0 = get_input_layer(e, dimension, lang)
     M, M_arr = get_sparse_tensor(e, KG)
@@ -232,7 +242,7 @@ def build(dimension, act_func, alpha, beta, gamma, k, lang, e, ILL, KG):
         primal_X_0, head, tail, head_r, tail_r, dimension)
     dual_H_1 = add_self_att_layer(dual_X_1, dual_A_1, tf.nn.relu, 600)
     primal_H_1 = add_sparse_att_layer(
-        primal_X_0, dual_H_1, r_mat, tf.nn.relu, e)
+        primal_X_0, dual_H_1, r_mat, tf.nn.relu)
     primal_X_1 = primal_X_0 + alpha * primal_H_1
 
     print('second interaction...')
@@ -241,7 +251,7 @@ def build(dimension, act_func, alpha, beta, gamma, k, lang, e, ILL, KG):
     dual_H_2 = add_dual_att_layer(
         dual_H_1, dual_X_2, dual_A_2, tf.nn.relu, 600)
     primal_H_2 = add_sparse_att_layer(
-        primal_X_1, dual_H_2, r_mat, tf.nn.relu, e)
+        primal_X_1, dual_H_2, r_mat, tf.nn.relu)
     primal_X_2 = primal_X_0 + beta * primal_H_2
 
     print('gcn layers...')
@@ -252,7 +262,7 @@ def build(dimension, act_func, alpha, beta, gamma, k, lang, e, ILL, KG):
         gcn_layer_1, dimension, M, act_func, dropout=0.0)
     output_layer = highway(gcn_layer_1, gcn_layer_2, dimension)
 
-    loss = get_loss(output_layer, ILL, gamma, k)
+    loss = get_loss(output_layer, gamma, k)
     return output_layer, loss
 
 
@@ -272,7 +282,7 @@ def get_neg(ILL, output_layer, k):
     return neg
 
 
-def training(output_layer, loss, learning_rate, epochs, ILL, e, k, test):
+def training(output_layer, loss, learning_rate, epochs, ILL, k, test, ref_ent1_list, ref_ent2_list):
     train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
     print('initializing...')
     init = tf.global_variables_initializer()
@@ -280,29 +290,51 @@ def training(output_layer, loss, learning_rate, epochs, ILL, e, k, test):
     sess.run(init)
     print('running...')
     J = []
-    t = len(ILL)
     ILL = np.array(ILL)
-    L = np.ones((t, k)) * (ILL[:, 0].reshape((t, 1)))
-    neg_left = L.reshape((t * k,))
-    L = np.ones((t, k)) * (ILL[:, 1].reshape((t, 1)))
-    neg2_right = L.reshape((t * k,))
+    t = len(ILL)
+    ILL_L = ILL[:, 0]
+    ILL_R = ILL[:, 1]
+    labeled_alignment = set()
+    ents1 = []
+    ents2 = []
+
     for i in range(epochs):
+        # train pair init
+        if len(ents1) != 0:
+            ILL_L = np.append(ILL_L, np.array(ents1))
+            ILL_R = np.append(ILL_R, np.array(ents2))
+        t = ILL_R.shape[0]
+        L = np.ones((t, k)) * ILL_L.reshape((t, 1))
+        neg_left = L.reshape((t * k,))
+        L = np.ones((t, k)) * ILL_R.reshape((t, 1))
+        neg2_right = L.reshape((t * k,))
+
         if i % 10 == 0:
             out = sess.run(output_layer)
-            neg2_left = get_neg(ILL[:, 1], out, k)
-            neg_right = get_neg(ILL[:, 0], out, k)
+            neg2_left = get_neg(ILL_L, out, k)
+            neg_right = get_neg(ILL_R, out, k)
             feeddict = {"neg_left:0": neg_left,
                         "neg_right:0": neg_right,
                         "neg2_left:0": neg2_left,
-                        "neg2_right:0": neg2_right}
+                        "neg2_right:0": neg2_right,
+                        "ILL_left:0": ILL_L,
+                        "ILL_right:0": ILL_R}
 
         _, th = sess.run([train_step, loss], feed_dict=feeddict)
-        if i % 10 == 0:
+        print('*****', '%d/%d' % (i, epochs), 'epochs --- loss: ', th)
+
+        if (i + 1) % 10 == 0:
             th, outvec = sess.run([loss, output_layer], feed_dict=feeddict)
             J.append(th)
             get_hits(outvec, test)
 
-        print('%d/%d' % (i + 1, epochs), 'epochs...', th)
+            labeled_alignment, ents1, ents2 = bootstrapping(outvec, test, ref_ent1_list, ref_ent2_list,
+                                                            labeled_alignment)
+
+        # if i % 10 == 0:
+        # labeled_alignment, ents1, ents2 = bootstrapping(outvec, test, ref_ent1_list, ref_ent2_list, labeled_alignment)
+
+
     outvec = sess.run(output_layer)
     sess.close()
     return outvec, J
