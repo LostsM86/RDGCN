@@ -268,6 +268,7 @@ def build(dimension, act_func, alpha, beta, gamma, k, lang, e, KG):
 
 # get negative samples
 def get_neg(ILL, output_layer, k):
+    print('>>>' + 'get_neg')
     neg = []
     t = len(ILL)
     ILL_vec = np.array([output_layer[e1] for e1 in ILL])
@@ -279,6 +280,7 @@ def get_neg(ILL, output_layer, k):
 
     neg = np.array(neg)
     neg = neg.reshape((t * k,))
+    print('<<<' + 'get_neg_done')
     return neg
 
 
@@ -303,6 +305,7 @@ def training(output_layer, loss, learning_rate, epochs, ILL, k, test, ref_ent1_l
         if len(ents1) != 0:
             ILL_L = np.append(ILL_L, np.array(ents1))
             ILL_R = np.append(ILL_R, np.array(ents2))
+        print('>>>' + 'new_epoch')
         t = ILL_R.shape[0]
         L = np.ones((t, k)) * ILL_L.reshape((t, 1))
         neg_left = L.reshape((t * k,))
@@ -320,16 +323,20 @@ def training(output_layer, loss, learning_rate, epochs, ILL, k, test, ref_ent1_l
                         "ILL_left:0": ILL_L,
                         "ILL_right:0": ILL_R}
 
+        print('>>>>' + 'mini_run')
         _, th = sess.run([train_step, loss], feed_dict=feeddict)
         print('*****', '%d/%d' % (i, epochs), 'epochs --- loss: ', th)
 
-        if (i + 1) % 10 == 0:
+        if (i - 1) % 10 == 0:
+            print('>>>>' + 'run')
             th, outvec = sess.run([loss, output_layer], feed_dict=feeddict)
             J.append(th)
             get_hits(outvec, test)
 
+            print('>>>' + 'bootstraping')
             labeled_alignment, ents1, ents2 = bootstrapping(outvec, test, ref_ent1_list, ref_ent2_list,
                                                             labeled_alignment)
+            print('<<<' + 'bootstraping_done')
 
         # if i % 10 == 0:
         # labeled_alignment, ents1, ents2 = bootstrapping(outvec, test, ref_ent1_list, ref_ent2_list, labeled_alignment)

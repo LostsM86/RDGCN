@@ -9,12 +9,13 @@ Initial datasets are from [GCN-Align](https://github.com/1049451037/GCN-Align) a
 * Python>=3.5
 * Tensorflow>=1.8.0
 * Scipy>=1.1.0
-* Numpy
+* Numpy=1.16.1
 > needed for bootstraping
 * graph-tool
 * sklearn
 * networkx
 * igraph
+* boost=1.74.0
 
 
 > Due to the limited graphics memory of GPU, we ran our codes using CPUs (40  Intel(R) Xeon(R) CPU E5-2640 v4 @ 2.40GHz).

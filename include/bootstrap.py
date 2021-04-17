@@ -5,7 +5,6 @@ import gc
 import numpy as np
 import igraph as ig
 import networkx as nx
-from graph_tool.all import *
 from include.Config import Config
 
 import functools
@@ -33,10 +32,15 @@ def bootstrapping(ents_embedding, ref_pairs, ref_ent1_list, ref_ent2_list, label
     th = Config.th
     n = ref_sim_mat.shape[0]
     # 这一轮找到的新的对齐实体
+    print('>>>' + 'find_potential_alig')
     curr_labeled_alignment = find_potential_alignment(ref_sim_mat, th, Config.boot_K, n)
+    print('<<<' + 'find_potential_alig_done')
     if curr_labeled_alignment is not None:
+        print('>>>' + 'update_labeled_alignment')
         labeled_alignment = update_labeled_alignment(labeled_alignment, curr_labeled_alignment, ref_sim_mat, n)
+        print('>>>' + 'update_labeled_alignment_label')
         labeled_alignment = update_labeled_alignment_label(labeled_alignment, ref_sim_mat, n)
+        print('<<<' + 'update_labeled_alignment_label_done')
         del curr_labeled_alignment
     # labeled_alignment = curr_labeled_alignment
     if labeled_alignment is not None:
@@ -46,6 +50,7 @@ def bootstrapping(ents_embedding, ref_pairs, ref_ent1_list, ref_ent2_list, label
         ents1, ents2 = None, None
     del ref_sim_mat
     gc.collect()
+
     return labeled_alignment, ents1, ents2
 
 
