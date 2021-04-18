@@ -6,6 +6,7 @@ import numpy as np
 import igraph as ig
 import networkx as nx
 from include.Config import Config
+import scipy
 
 import functools
 print = functools.partial(print, flush=True)
@@ -19,14 +20,15 @@ def bootstrapping(ents_embedding, ref_pairs, ref_ent1_list, ref_ent2_list, label
     Lvec = np.array([ents_embedding[e1] for e1, e2 in ref_pairs])       # len(ref_pair) * 300
     Rvec = np.array([ents_embedding[e2] for e1, e2 in ref_pairs])
     # 实体相似度矩阵
-    # ref_sim_mat = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')      # len(ref_pair) * len(ref_pair)
-    # ref_sim_mat = 1/(1 + np.exp(-ref_sim_mat))
+    ref_sim_mat = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')      # len(ref_pair) * len(ref_pair)
+
+    ref_sim_mat = 1.0 / np.exp(ref_sim_mat)
     # ref_sim_mat = np.matmul(Lvec, Rvec.transpose())
     # denom = np.linalg.norm(Lvec) * np.linalg.norm(Rvec)
     # ref_sim_mat = 0.5 + 0.5 * (ref_sim_mat / denom)
-    Lvec = normalize(Lvec, axis=1, norm='l2')
-    Rvec = normalize(Rvec, axis=1, norm='l2')
-    ref_sim_mat = np.matmul(Lvec, Rvec.transpose())
+    # Lvec = normalize(Lvec, axis=1, norm='l2')
+    # Rvec = normalize(Rvec, axis=1, norm='l2')
+    # ref_sim_mat = np.matmul(Lvec, Rvec.transpose())
 
 
     th = Config.th

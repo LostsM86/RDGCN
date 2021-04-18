@@ -16,6 +16,6 @@ class Config:
 	gamma = 1.0  # margin based loss
 	k = 125  # number of negative samples for each positive one
 	seed = 3  # 30% of seeds
-	th = 0.97		# bootstraping filter
-	boot_K = 20		# 前boot_k作为candidate
+	th = 0.5		# bootstraping filter
+	boot_K = 30		# 前boot_k作为candidate
 	heuristic = True

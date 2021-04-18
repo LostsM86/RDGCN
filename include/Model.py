@@ -40,7 +40,36 @@ def rfunc(KG, e):
     return head, tail, head_r, tail_r, r_mat
 
 
+def idf_func(kg1, kg2):
+    r2idf = {}
+    l1 = len(kg1)
+    t1 = {}
+    for tri in kg1:
+        if tri[1] not in t1:
+            t1[tri[1]] = 1
+        else:
+            t1[tri[1]] += 1
+    for r in t1:
+        r2idf[r] = math.log(l1 / (1 + t1[r]), 10)
+    l2 = len(kg1)
+    t2 = {}
+    for tri in kg2:
+        if tri[1] not in t2:
+            t2[tri[1]] = 1
+        else:
+            t2[tri[1]] += 1
+    for r in t2:
+        r2idf[r] = math.log(l2 / (1 + t2[r]), 10)
+
+    min_idf = min(r2idf.values())
+    max_idf = max(r2idf.values())
+
+    for r in r2idf:
+        r2idf[r] = (r2idf[r] - min_idf) / (max_idf - min_idf)
+    return r2idf
+
 def get_mat(e, KG):
+    # 出入度矩阵: [{0, 11}, {2, 3}, ...]  包括自己到自己的度，1<->2的度
     du = [{e_id} for e_id in range(e)]
     for tri in KG:
         if tri[0] != tri[2]:
@@ -48,6 +77,7 @@ def get_mat(e, KG):
             du[tri[2]].add(tri[0])
     du = [len(d) for d in du]
     M = {}
+    # M是双向图+自己到自己
     for tri in KG:
         if tri[0] == tri[2]:
             continue
@@ -66,18 +96,23 @@ def get_mat(e, KG):
 
 
 # get a sparse tensor based on relational triples
-def get_sparse_tensor(e, KG):
+def get_sparse_tensor(e, KG, KG1, KG2):
     print('getting a sparse tensor...')
     M, du = get_mat(e, KG)
+    # r2idf = idf_func(KG1, KG2)
     ind = []
     val = []
     M_arr = np.zeros((e, e))
     for fir, sec in M:
         ind.append((sec, fir))
         val.append(M[(fir, sec)] / math.sqrt(du[fir]) / math.sqrt(du[sec]))
+        # ind.append((fir, sec))
+        # val.append(M[(fir, sec)] / ((math.sqrt(du[fir]) + math.sqrt(du[sec])) * r2idf[(fir, sec)]))
         M_arr[fir][sec] = 1.0
     M = tf.SparseTensor(indices=ind, values=val, dense_shape=[e, e])
 
+    # M_arr: primal graph 邻接矩阵，1<->2, 1<->1
+    # M: dual graph的稀疏矩阵
     return M, M_arr
 
 
@@ -231,10 +266,16 @@ def get_loss(outlayer, gamma, k):
     return tf.div(tf.reduce_sum(L1) + tf.reduce_sum(L2), (2.0 * k * t))
 
 
-def build(dimension, act_func, alpha, beta, gamma, k, lang, e, KG):
+def build(dimension, act_func, alpha, beta, gamma, k, lang, e, KG1, KG2):
+    KG = KG1 + KG2
     tf.reset_default_graph()
+    # primal_X_0: 文件里读到的ent_embedding
     primal_X_0 = get_input_layer(e, dimension, lang)
-    M, M_arr = get_sparse_tensor(e, KG)
+    # M: dual graph的稀疏矩阵, 自环+双向图
+    M, M_arr = get_sparse_tensor(e, KG, KG1, KG2)
+    # head、tail: 关系r的头、尾集合
+    # head_r、tail_r: 实体-关系矩阵，存在关系=1
+    # r_mat: indice:(e, t) value(r) 稀疏矩阵，保存完整triple
     head, tail, head_r, tail_r, r_mat = rfunc(KG, e)
 
     print('first interaction...')
@@ -300,7 +341,6 @@ def training(output_layer, loss, learning_rate, epochs, ILL, k, test, all_ent1_l
     print('running...')
     J = []
     ILL = np.array(ILL)
-    t = len(ILL)
     ILL_L_BASE = ILL[:, 0]
     ILL_R_BASE = ILL[:, 1]
     ILL_L = np.array(ILL_L_BASE)
@@ -310,47 +350,47 @@ def training(output_layer, loss, learning_rate, epochs, ILL, k, test, all_ent1_l
     ents2 = []
 
     for i in range(epochs):
-        # train pair init
-        print(len(ents1))
-        print(len(ents2))
-        if len(ents1) != 0:
-            ILL_L = np.append(ILL_L_BASE, np.array(ents1))
-            ILL_R = np.append(ILL_R_BASE, np.array(ents2))
         print('>>>' + 'new_epoch')
+        if i == 0:
+            outvec = sess.run(output_layer)
+
+        # bootstrap
+        if i in range(10, epochs):
+            print('>>>' + 'bootstraping')
+            labeled_alignment, ents1, ents2 = bootstrapping(outvec, test, ref_ent1_list, ref_ent2_list,
+                                                            labeled_alignment)
+            print('<<<' + 'bootstraping_done')
+            if ents1 != []:
+                ILL_L = np.append(ILL_L_BASE, np.array(ents1))
+                ILL_R = np.append(ILL_R_BASE, np.array(ents2))
+
+        # feeddict init
         t = ILL_R.shape[0]
         L = np.ones((t, k)) * ILL_L.reshape((t, 1))
         neg_left = L.reshape((t * k,))
         L = np.ones((t, k)) * ILL_R.reshape((t, 1))
         neg2_right = L.reshape((t * k,))
+        neg2_left = get_neg(ILL_R, all_ent1_list, ILL_L, outvec, k)
+        neg_right = get_neg(ILL_L, all_ent2_list, ILL_R, outvec, k)
+        feeddict = {"neg_left:0": neg_left,
+                    "neg_right:0": neg_right,
+                    "neg2_left:0": neg2_left,
+                    "neg2_right:0": neg2_right,
+                    "ILL_left:0": ILL_L,
+                    "ILL_right:0": ILL_R}
 
-        if i % 10 == 0:
-            out = sess.run(output_layer)
-            neg2_left = get_neg(ILL_R, all_ent1_list, ILL_L, out, k)
-            neg_right = get_neg(ILL_L, all_ent2_list, ILL_R, out, k)
-            feeddict = {"neg_left:0": neg_left,
-                        "neg_right:0": neg_right,
-                        "neg2_left:0": neg2_left,
-                        "neg2_right:0": neg2_right,
-                        "ILL_left:0": ILL_L,
-                        "ILL_right:0": ILL_R}
-
+        # train one epoch
         print('>>>>' + 'mini_run')
-        _, th = sess.run([train_step, loss], feed_dict=feeddict)
+        _, th, outvec = sess.run([train_step, loss, output_layer], feed_dict=feeddict)
         print('*****', '%d/%d' % (i, epochs), 'epochs --- loss: ', th)
 
-        if (i + 1) % 10 == 0:
+        # dev
+        if i % 10 == 0:
             print('>>>>' + 'run')
-            th, outvec = sess.run([loss, output_layer], feed_dict=feeddict)
+            # th, outvec = sess.run([loss, output_layer], feed_dict=feeddict)
             J.append(th)
             get_hits(outvec, test)
 
-            print('>>>' + 'bootstraping')
-            labeled_alignment, ents1, ents2 = bootstrapping(outvec, test, ref_ent1_list, ref_ent2_list,
-                                                            labeled_alignment)
-            print('<<<' + 'bootstraping_done')
-
-        # if i % 10 == 0:
-        # labeled_alignment, ents1, ents2 = bootstrapping(outvec, test, ref_ent1_list, ref_ent2_list, labeled_alignment)
 
 
     outvec = sess.run(output_layer)

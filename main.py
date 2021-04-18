@@ -32,8 +32,8 @@ if __name__ == '__main__':
     KG1 = loadfile(Config.kg1, 3)
     KG2 = loadfile(Config.kg2, 3)
 
-    output_layer, loss = build(
-        Config.dim, Config.act_func, Config.alpha, Config.beta, Config.gamma, Config.k, Config.language[0:2], e, KG1 + KG2)
+    output_layer, loss = build(Config.dim, Config.act_func, Config.alpha, Config.beta, Config.gamma, Config.k,
+                               Config.language[0:2], e, KG1, KG2)
     vec, J = training(output_layer, loss, 0.001,
                       Config.epochs, train, Config.k, test, all_ent1_list, all_ent2_list, ref_ent1_list, ref_ent2_list)
     print('loss:', J)
