@@ -14,6 +14,20 @@ def loadfile(fn, num=1):
             ret.append(tuple(x))
     return ret
 
+
 def get_ent_list(pair):
     nppair = np.array([list(i) for i in pair])
     return nppair[:, 0], nppair[:, 1]
+
+
+def generate_related_ents(triples):
+    related_ents_dict = dict()
+    for h, r, t in triples:
+        add_dict_kv(related_ents_dict, h, t)
+    return related_ents_dict
+
+
+def add_dict_kv(dic, k, v):
+    vs = dic.get(k, set())
+    vs.add(v)
+    dic[k] = vs

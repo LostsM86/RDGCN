@@ -11,38 +11,41 @@ import scipy
 import functools
 print = functools.partial(print, flush=True)
 
-def bootstrapping(ents_embedding, ref_pairs, ref_ent1_list, ref_ent2_list, labeled_alignment):
+
+def bootstrapping(ents_embedding_s, ents_embedding_a, ref_pairs, ref_ent1_list, ref_ent2_list, labeled_alignment):
     # sim_mat
-    from sklearn.preprocessing import normalize
-    if ents_embedding is None:
+    if ents_embedding_s is None:
         return
     # 从ref_pairs中按对齐顺序取出实体的vec
-    Lvec = np.array([ents_embedding[e1] for e1, e2 in ref_pairs])       # len(ref_pair) * 300
-    Rvec = np.array([ents_embedding[e2] for e1, e2 in ref_pairs])
+    Lvec = np.array([ents_embedding_s[e1] for e1, e2 in ref_pairs])       # len(ref_pair) * 300
+    Rvec = np.array([ents_embedding_s[e2] for e1, e2 in ref_pairs])
     # 实体相似度矩阵
-    ref_sim_mat = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')      # len(ref_pair) * len(ref_pair)
+    ref_sim_mat_s = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')      # len(ref_pair) * len(ref_pair)
+    ref_sim_mat_s = 1.0 / np.exp(ref_sim_mat_s)
+    print(np.max(ref_sim_mat_s))
+    print(np.min(ref_sim_mat_s))
 
-    ref_sim_mat = 1.0 / np.exp(ref_sim_mat)
-    # ref_sim_mat = np.matmul(Lvec, Rvec.transpose())
-    # denom = np.linalg.norm(Lvec) * np.linalg.norm(Rvec)
-    # ref_sim_mat = 0.5 + 0.5 * (ref_sim_mat / denom)
-    # Lvec = normalize(Lvec, axis=1, norm='l2')
-    # Rvec = normalize(Rvec, axis=1, norm='l2')
-    # ref_sim_mat = np.matmul(Lvec, Rvec.transpose())
+    if ents_embedding_s is None:
+        return
+    # 从ref_pairs中按对齐顺序取出实体的vec
+    Lvec = np.array([ents_embedding_a[e1] for e1, e2 in ref_pairs])       # len(ref_pair) * 300
+    Rvec = np.array([ents_embedding_a[e2] for e1, e2 in ref_pairs])
+    # 实体相似度矩阵
+    ref_sim_mat_a = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')      # len(ref_pair) * len(ref_pair)
+    ref_sim_mat_a = 1.0 / np.exp(ref_sim_mat_a)
+    print(np.max(ref_sim_mat_a))
+    print(np.min(ref_sim_mat_a))
 
+    n = ref_sim_mat_s.shape[0]
+    这一轮找到的新的对齐实体
+    curr_labeled_alignment = find_potential_alignment(ref_sim_mat_s, ref_sim_mat_a, Config.th_s,
+                                                      Config.th_a, Config.boot_K, n)
 
-    th = Config.th
-    n = ref_sim_mat.shape[0]
-    # 这一轮找到的新的对齐实体
-    print('>>>' + 'find_potential_alig')
-    curr_labeled_alignment = find_potential_alignment(ref_sim_mat, th, Config.boot_K, n)
-    print('<<<' + 'find_potential_alig_done')
+    ref_sim_mat = FLAGS.beta * ref_sim_mat_s + (1 - FLAGS.beta) * ref_sim_mat_a
+
     if curr_labeled_alignment is not None:
-        print('>>>' + 'update_labeled_alignment')
         labeled_alignment = update_labeled_alignment(labeled_alignment, curr_labeled_alignment, ref_sim_mat, n)
-        print('>>>' + 'update_labeled_alignment_label')
         labeled_alignment = update_labeled_alignment_label(labeled_alignment, ref_sim_mat, n)
-        print('<<<' + 'update_labeled_alignment_label_done')
         del curr_labeled_alignment
     # labeled_alignment = curr_labeled_alignment
     if labeled_alignment is not None:
@@ -51,6 +54,7 @@ def bootstrapping(ents_embedding, ref_pairs, ref_ent1_list, ref_ent2_list, label
     else:
         ents1, ents2 = None, None
     del ref_sim_mat
+    del ref_sim_mat_s
     gc.collect()
 
     return labeled_alignment, ents1, ents2
@@ -103,16 +107,15 @@ def search_nearest_k(sim_mat, k):
     return neighbors
 
 
-def mwgm(pairs, sim_mat, func):
-    return func(pairs, sim_mat)
+def mwgm(pairs, func):
+    return func(pairs)
 
 
-def mwgm_graph_tool(pairs, sim_mat):
+def mwgm_graph_tool(pairs):
     from graph_tool.all import Graph, max_cardinality_matching
     if not isinstance(pairs, list):
         pairs = list(pairs)
     g = Graph()
-    weight_map = g.new_edge_property("float")
     nodes_dict1 = dict()
     nodes_dict2 = dict()
     edges = list()
@@ -127,9 +130,8 @@ def mwgm_graph_tool(pairs, sim_mat):
         n2 = nodes_dict2.get(y)
         e = g.add_edge(n1, n2)
         edges.append(e)
-        weight_map[g.edge(n1, n2)] = sim_mat[x, y]
     print("graph via graph_tool", g)
-    res = max_cardinality_matching(g, heuristic=True, weight=weight_map, minimize=False, edges=True)
+    res = max_cardinality_matching(g, heuristic=True, edges=True)
     # res = res.copy("double")
     # res.a = 2 * res.a + 2
     # graph_draw(g, edge_color=res, edge_pen_width=res, vertex_fill_color="grey",
@@ -196,16 +198,28 @@ def mwgm_networkx(pairs, sim_mat):
     return matching_pairs
 
 
-def find_potential_alignment(sim_mat, sim_th, k, total_n):
+def find_potential_alignment(sim_mat_s, sim_th_s, k, total_n):
     t = time.time()
-    potential_aligned_pairs = generate_alignment(sim_mat, sim_th, k, total_n)
+    print('>>>' + 'find_potential_alig from se')
+    potential_aligned_pairs = generate_alignment(sim_mat_s, sim_th_s, k, total_n)
+    print('>>>' + 'find_potential_alig from ae')
+    # potential_aligned_pairs_a = generate_alignment(sim_mat_a, sim_th_a, k, total_n)
+    # if (potential_aligned_pairs_s is None or len(potential_aligned_pairs_s) == 0)\
+    #         and (potential_aligned_pairs_a is None or len(potential_aligned_pairs_a) == 0):
+    #     return None
+    # elif potential_aligned_pairs_s is None or len(potential_aligned_pairs_s) == 0:
+    #     potential_aligned_pairs = potential_aligned_pairs_a
+    # elif potential_aligned_pairs_a is None or len(potential_aligned_pairs_a) == 0:
+    #     potential_aligned_pairs = potential_aligned_pairs_s
+    # else:
+    #     potential_aligned_pairs = potential_aligned_pairs_a | potential_aligned_pairs_s
     if potential_aligned_pairs is None or len(potential_aligned_pairs) == 0:
         return None
     t1 = time.time()
-    if Config.heuristic:
-        selected_pairs = mwgm(potential_aligned_pairs, sim_mat, mwgm_graph_tool)
-    else:
-        selected_pairs = mwgm(potential_aligned_pairs, sim_mat, mwgm_igraph)
+    # if FLAGS.heuristic:
+    selected_pairs = mwgm(potential_aligned_pairs, mwgm_graph_tool)
+    # else:
+    #     selected_pairs = mwgm(potential_aligned_pairs, sim_mat, mwgm_igraph)
     check_alignment(selected_pairs, total_n, context="selected_pairs")
     del potential_aligned_pairs
     print("mwgm costs time: {:.3f} s".format(time.time() - t1))
@@ -229,7 +243,6 @@ def generate_alignment(sim_mat, sim_th, k, all_n):
             return None
         check_alignment(potential_aligned_pairs, all_n, context="after sim and neighbours filtered")
     del neighbors
-    print(len(potential_aligned_pairs))
     return potential_aligned_pairs
 
 
@@ -298,5 +311,8 @@ def update_labeled_alignment_label(labeled_alignment, sim_mat, all_n):
             updated_alignment.add((max_i, j))
     check_alignment(updated_alignment, all_n, context="after editing labeled alignment (->)")
     return updated_alignment
+
+
+
 
 
