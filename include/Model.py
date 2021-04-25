@@ -374,54 +374,55 @@ def training(output_layer_se, loss_se, train_step_se, sess_se,
     ents1 = []
     ents2 = []
 
+    # average_loss = 0
+    # steps = math.ceil(len(model_ae.data) / batch_size * 50)
+    # for step in range(steps):
+    #     dic = {}
+    #     dic['train_inputs'], dic['train_labels'], dic['range_vecs'] \
+    #         = generate_batch_random(model_ae.data, batch_size, model_ae.range_vec)
+    #     watch, _, loss_ae = model_ae.mini_act(dic)
+    #     average_loss += loss_ae
+    #
+    #     if step % 1000 == 0:
+    #         if step > 0:
+    #             average_loss /= 1000
+    #             print("average loss at step", step, ":", average_loss)
 
-    # ae_batch_inputs = []
-    # ae_batch_labels = []
-    # range_types = []
-    # for j in range(len(model_ae.data)):
-    #     ae_batch_inputs[j] = model_ae.data[j][0]
-    #     ae_batch_labels[j, 0] = model_ae.data[j][1]
-    #     range_types[j, 0] = get_range_weight(model_ae.range_vec, ae_batch_inputs[j], ae_batch_labels[j, 0])
+    attr_embeddings = model_ae.act()
+    model_ae.ent2vec(attr_embeddings)
+    ae_outvec = model_ae.ent_embedding_list
+    # model_ae.get_sim_mat()
+    print("AE")
+    # get_hits_ae(model_ae.sim_mat, test)
+    get_hits(ae_outvec, test)
 
     for i in range(epochs):
         print(i)
-        # if i == 0:
-        #     se_outvec = sess_se.run(output_layer_se)
-        #     print(len(se_outvec))
-        #     exit()
-        #     # ae_outvec = sess_ae.run(model_ae.embeddings)
-        #
-        # # bootstrap
-        # # if i in range(10, epochs, 5):
-        # #     se_outvec = sess_se.run(output_layer_se, feed_dict=feeddict)
-        # #     get_hits(se_outvec, test)
-        # #     print('>>>' + 'bootstraping')
-        # #     labeled_alignment, ents1, ents2 \
-        # #         = bootstrapping(se_outvec, test, ref_ent1_list, ref_ent2_list, labeled_alignment)
-        # #     print(len(ents1))
-        # #     print('<<<' + 'bootstraping_done')
-        # #     if ents1 != []:
-        # #         ILL_L = np.append(ILL_L_BASE, np.array(ents1))
-        # #         ILL_R = np.append(ILL_R_BASE, np.array(ents2))
-        #
-        # # se 1 epoch
-        # t = ILL_R.shape[0]
-        # L = np.ones((t, k), dtype=int) * ILL_L.reshape((t, 1))
-        # neg_left = L.reshape((t * k,))
-        # L = np.ones((t, k), dtype=int) * ILL_R.reshape((t, 1))
-        # neg2_right = L.reshape((t * k,))
-        # neg_right = get_neg(ILL_L, all_ent2_list, ILL_R, se_outvec, k)
-        # neg2_left = get_neg(ILL_R, all_ent1_list, ILL_L, se_outvec, k)
-        # feeddict = {"neg_left:0": neg_left,
-        #             "neg_right:0": neg_right,
-        #             "neg2_left:0": neg2_left,
-        #             "neg2_right:0": neg2_right,
-        #             "ILL_left:0": ILL_L,
-        #             "ILL_right:0": ILL_R}
-        # _, ls = sess_se.run([train_step_se, loss_se], feed_dict=feeddict)
-        # cost_val.append(ls)
+        if i == 0:
+            se_outvec = sess_se.run(output_layer_se)
+            # ae_outvec = sess_ae.run(model_ae.embeddings)
+
+
+        # se 1 epoch
+        print('>>>se training')
+        t = ILL_R.shape[0]
+        L = np.ones((t, k), dtype=int) * ILL_L.reshape((t, 1))
+        neg_left = L.reshape((t * k,))
+        L = np.ones((t, k), dtype=int) * ILL_R.reshape((t, 1))
+        neg2_right = L.reshape((t * k,))
+        neg_right = get_neg(ILL_L, all_ent2_list, ILL_R, se_outvec, k)
+        neg2_left = get_neg(ILL_R, all_ent1_list, ILL_L, se_outvec, k)
+        feeddict = {"neg_left:0": neg_left,
+                    "neg_right:0": neg_right,
+                    "neg2_left:0": neg2_left,
+                    "neg2_right:0": neg2_right,
+                    "ILL_left:0": ILL_L,
+                    "ILL_right:0": ILL_R}
+        _, ls = sess_se.run([train_step_se, loss_se], feed_dict=feeddict)
+        cost_val.append(ls)
 
         # ae 1 epoch
+        print('>>>ae training')
         # print(math.ceil(len(model_ae.data) / batch_size))
         average_loss = 0
         for step in range(math.ceil(len(model_ae.data) / batch_size)):
@@ -431,42 +432,45 @@ def training(output_layer_se, loss_se, train_step_se, sess_se,
             watch, _, loss_ae = model_ae.mini_act(dic)
             average_loss += loss_ae
 
-            attr_embeddings = model_ae.act()
-            model_ae.ent2vec(attr_embeddings)
-            ae_outvec = model_ae.ent_embedding_list
-            print(max(max(row) for row in ae_outvec))
-            print(min(min(row) for row in ae_outvec))
-            model_ae.get_sim_mat()
-            print("AE")
-            get_hits_ae(model_ae.sim_mat, test)
-
-            if step % 1000 == 0:
-                if step > 0:
-                    average_loss /= 1000
-                    print("average loss at step", step, ":", average_loss)
-        # average_loss /= math.ceil(len(model_ae.data) / batch_size) * batch_size
+        average_loss /= math.ceil(len(model_ae.data) / batch_size) * batch_size
 
         # print loss
-        # print('*****', '%d/%d' % (i, epochs), 'epochs --- ', 'AE_loss: ', "SE_train_loss=", "{:.5f}".format(ls), "AE_train_loss=",
-        #       "{:.5f}".format(average_loss))
+        print('*****', '%d/%d' % (i, epochs), 'epochs --- ', 'AE_loss: ', "SE_train_loss=", "{:.5f}".format(ls), "AE_train_loss=",
+              "{:.5f}".format(average_loss))
+
+        attr_embeddings = model_ae.act()
+        model_ae.ent2vec(attr_embeddings)
+        ae_outvec = model_ae.ent_embedding_list
+        vec = np.concatenate([np.array(se_outvec) * Config.beta, np.array(ae_outvec) * (1.0 - Config.beta)], axis=1)
+        # bootstrap
+        if i in range(0, epochs):
+            se_outvec = sess_se.run(output_layer_se, feed_dict=feeddict)
+            get_hits(se_outvec, test)
+            print('>>>' + 'bootstraping')
+            labeled_alignment, ents1, ents2 \
+                = bootstrapping(se_outvec, test, ref_ent1_list, ref_ent2_list, labeled_alignment)
+            print(len(ents1))
+            print('<<<' + 'bootstraping_done')
+            if ents1 != []:
+                ILL_L = np.append(ILL_L_BASE, np.array(ents1))
+                ILL_R = np.append(ILL_R_BASE, np.array(ents2))
 
         # print hits
         if i in range(0, epochs):
-            # se_outvec = sess_se.run(output_layer_se)
-            # print("SE")
-            # get_hits(se_outvec, test)
+            se_outvec = sess_se.run(output_layer_se)
+            print("SE")
+            get_hits(se_outvec, test)
 
             attr_embeddings = model_ae.act()
             model_ae.ent2vec(attr_embeddings)
             ae_outvec = model_ae.ent_embedding_list
-            print(max(max(row) for row in ae_outvec))
-            print(min(min(row) for row in ae_outvec))
-            model_ae.get_sim_mat()
+            # model_ae.get_sim_mat()
             print("AE")
-            get_hits_ae(model_ae.sim_mat, test)
+            # get_hits_ae(model_ae.sim_mat, test)
+            get_hits(ae_outvec, test)
 
-            # print("SE+AE")
-            # get_combine_hits(se_outvec, model_ae.sim_mat, test)
+            print("SE+AE")
+            get_combine_hits(se_outvec, ae_outvec, Config.beta, test)
 
         # early_stoping
         if i > Config.early_stopping \

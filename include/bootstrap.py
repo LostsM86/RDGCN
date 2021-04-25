@@ -12,7 +12,7 @@ import functools
 print = functools.partial(print, flush=True)
 
 
-def bootstrapping(ents_embedding_s, ents_embedding_a, ref_pairs, ref_ent1_list, ref_ent2_list, labeled_alignment):
+def bootstrapping(ents_embedding_s, ref_pairs, ref_ent1_list, ref_ent2_list, labeled_alignment):
     # sim_mat
     if ents_embedding_s is None:
         return
@@ -28,20 +28,20 @@ def bootstrapping(ents_embedding_s, ents_embedding_a, ref_pairs, ref_ent1_list, 
     if ents_embedding_s is None:
         return
     # 从ref_pairs中按对齐顺序取出实体的vec
-    Lvec = np.array([ents_embedding_a[e1] for e1, e2 in ref_pairs])       # len(ref_pair) * 300
-    Rvec = np.array([ents_embedding_a[e2] for e1, e2 in ref_pairs])
-    # 实体相似度矩阵
-    ref_sim_mat_a = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')      # len(ref_pair) * len(ref_pair)
-    ref_sim_mat_a = 1.0 / np.exp(ref_sim_mat_a)
-    print(np.max(ref_sim_mat_a))
-    print(np.min(ref_sim_mat_a))
+    # Lvec = np.array([ents_embedding_a[e1] for e1, e2 in ref_pairs])       # len(ref_pair) * 300
+    # Rvec = np.array([ents_embedding_a[e2] for e1, e2 in ref_pairs])
+    # # 实体相似度矩阵
+    # ref_sim_mat_a = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')      # len(ref_pair) * len(ref_pair)
+    # ref_sim_mat_a = 1.0 / np.exp(ref_sim_mat_a)
+    # print(np.max(ref_sim_mat_a))
+    # print(np.min(ref_sim_mat_a))
 
     n = ref_sim_mat_s.shape[0]
-    这一轮找到的新的对齐实体
-    curr_labeled_alignment = find_potential_alignment(ref_sim_mat_s, ref_sim_mat_a, Config.th_s,
-                                                      Config.th_a, Config.boot_K, n)
+    # 这一轮找到的新的对齐实体
+    curr_labeled_alignment = find_potential_alignment(ref_sim_mat_s, Config.th, Config.boot_K, n)
 
-    ref_sim_mat = FLAGS.beta * ref_sim_mat_s + (1 - FLAGS.beta) * ref_sim_mat_a
+    # ref_sim_mat = Config.beta * ref_sim_mat_s + (1 - Config.beta) * ref_sim_mat_a
+    ref_sim_mat = ref_sim_mat_s
 
     if curr_labeled_alignment is not None:
         labeled_alignment = update_labeled_alignment(labeled_alignment, curr_labeled_alignment, ref_sim_mat, n)

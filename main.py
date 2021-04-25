@@ -43,7 +43,7 @@ if __name__ == '__main__':
     # ae build
     print('#### AE building')
     model_ae = CorrelationNN(e)
-    model_ae.load_base_data(Config.language, train, related_ents_dict1, related_ents_dict2)
+    model_ae.load_base_data(Config.language, train, ref_ent1_list, ref_ent2_list, related_ents_dict1, related_ents_dict2)
     model_ae.build()
 
     # se build

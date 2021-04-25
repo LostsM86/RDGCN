@@ -87,7 +87,7 @@ class CorrelationNN(object):
         results = self.sess.run(self.embeddings)
         return results
 
-    def load_base_data(self, lang, train, related_ents_dict1, related_ents_dict2):
+    def load_base_data(self, lang, train, ref_ent1_list, ref_ent2_list, related_ents_dict1, related_ents_dict2):
         attr_folder = './data/' + lang + '/'
         rel_train_data_folder = './data/' + lang + '/'
         attr_range_file = './data/' + lang + '/all_attrs_range'
@@ -95,6 +95,8 @@ class CorrelationNN(object):
 
         self.sup_ents_pairs = train
         self.all_id_list1, self.all_id_list2 = read_kg_ent_lists(attr_folder)
+        self.ref_ent1_list = ref_ent1_list
+        self.ref_ent2_list = ref_ent2_list
         self.related_ents_dict1 = related_ents_dict1
         self.related_ents_dict2 = related_ents_dict2
         # self.sup_ents_pairs = read_pair_ids(rel_train_data_folder + 'ref_ent_ids')      # 直接传入
@@ -207,30 +209,30 @@ class CorrelationNN(object):
             prop_embddings = attr_embeddings[prop_indexs]
             # self.ent_embedding_list index即id
             self.ent_embedding_list[self.ent_id_dict[ent]] = np.sum(prop_embddings, axis=0) / len(prop_indexs)
+        del attr_embeddings
 
     def get_sim_mat(self):
         mat1 = np.array(self.ent_embedding_list)[self.all_id_list1]
         mat1 = preprocessing.normalize(np.matrix(mat1))
         mat2 = np.array(self.ent_embedding_list)[self.all_id_list2]
         mat2 = preprocessing.normalize(np.matrix(mat2))
-        self.sim_mat = get_sim_mat_after_filter(mat1, mat2)
-        print(self.sim_mat.min(), self.sim_mat.max(), self.sim_mat.mean())
-        self.emhance_sim()
-        print(self.sim_mat.min(), self.sim_mat.max(), self.sim_mat.mean())
+        sim_mat = get_sim_mat_after_filter(mat1, mat2, is_sparse=False, is_filtered=False)
+        del mat1
+        del mat2
+        print(sim_mat.min(), sim_mat.max(), sim_mat.mean())
+        sim_mat = self.emhance_sim(sim_mat)
+        print(sim_mat.min(), sim_mat.max(), sim_mat.mean())
 
-    def emhance_sim(self, th=0.8):
+    def emhance_sim(self, sim_mat, th=0.8):
         print("begin enhance_sim...")
         total_sim = 0
         related_pair = dict()
-        # kb1_ents  self.kb1_ids.values()
-        # kb1_ents = list(self.id_ent_dict1.values())
-        # kb2_ents = list(self.id_ent_dict2.values())
         for e1, e2 in self.sup_ents_pairs:
             if e1 in self.related_ents_dict1.keys() and e2 in self.related_ents_dict2.keys():
                 e1_idx = self.all_id_list1.index(e1)
                 e2_idx = self.all_id_list2.index(e2)
-                total_sim += self.sim_mat[e1_idx, e1_idx]
-                self.sim_mat[e1_idx, e2_idx] = 1
+                total_sim += sim_mat[e1_idx, e1_idx]
+                sim_mat[e1_idx, e2_idx] = 1
                 # print("sim of sups", self.sim_mat[e1, e2])
                 related_ents1 = to_ids(self.related_ents_dict1, self.all_id_list1)
                 related_ents2 = to_ids(self.related_ents_dict2, self.all_id_list2)
@@ -241,16 +243,18 @@ class CorrelationNN(object):
         avg_sim = total_sim / len(self.sup_ents_pairs)
         print("ava sim of sups", avg_sim)
         # sim_mat[sim_mat < th // 3] = 0.0
+        print(len(related_pair))
         for r1, r2 in related_pair:
-            self.sim_mat[r1, r2] *= (related_pair.get((r1, r2)) + 1) * 100  # big data
-            # sim_mat[r1, r2] *= pow(3, related_pair.get((r1, r2)))  # small data
-            self.sim_mat[r1, r2] = max(1, self.sim_mat[r1, r2])
+            sim_mat[r1, r2] *= (related_pair.get((r1, r2)) + 1) * 100  # big data
+            # self.sim_mat[r1, r2] *= pow(3, related_pair.get((r1, r2)))  # small data
+            sim_mat[r1, r2] = max(1, sim_mat[r1, r2])
             # if sim_mat[r1, r2] > 0.0001:
             #     sim_mat[r1, r2] = max(1.0, sim_mat[r1, r2])
         print("filtered by sim th:", th)
-        self.sim_mat[self.sim_mat < th] = 0.0
-        sim_mat = preprocessing.normalize(self.sim_mat, norm='l1')
-        # sim_mat = scipy.sparse.csr_matrix(sim_mat)
+        sim_mat[sim_mat < th] = 0.0
+        sim_mat = preprocessing.normalize(sim_mat, norm='l1')
+        sim_mat = scipy.sparse.csr_matrix(sim_mat)
+        return sim_mat
 
 
 def to_ids(related_ent_ids, all_ent_list):
@@ -262,11 +266,14 @@ def to_ids(related_ent_ids, all_ent_list):
     return ids
 
 
-def get_sim_mat_after_filter(mat11, mat22, is_filtered=True, th=0.8):
+def get_sim_mat_after_filter(mat11, mat22, is_sparse=True, is_filtered=True, th=0.8):
     sim = np.dot(mat11, mat22.T)
     if is_filtered:
         print("filtered by sim th:", th)
         sim[sim < th] = 0.0
+    if is_sparse:
+        print("begin sparse...")
+        sim = scipy.sparse.lil_matrix(sim)
     return sim
 
 

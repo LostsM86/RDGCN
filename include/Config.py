@@ -13,7 +13,7 @@ class Config:
 	dim = 300
 	act_func = tf.nn.relu
 	alpha = 0.1
-	beta = 0.3
+	beta = 0.99
 	gamma = 1.0  # margin based loss
 	k = 100  # number of negative samples for each positive one
 	seed = 3  # 30% of seeds
