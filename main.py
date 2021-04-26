@@ -4,6 +4,7 @@ from include.Model import build, training
 from include.Test import get_hits
 from include.Load import *
 from include.utils import *
+from include.models import *
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -18,6 +19,8 @@ np.random.seed(seed)
 tf.set_random_seed(seed)
 
 if __name__ == '__main__':
+
+    # load data: e(实体数) + train + (kg1 + kg2)
     e = len(set(loadfile(Config.e1, 1)) | set(loadfile(Config.e2, 1)))
 
     ILL = loadfile(Config.ill, 2)
@@ -25,37 +28,25 @@ if __name__ == '__main__':
     np.random.shuffle(ILL)
     train = np.array(ILL[:illL // 10 * Config.seed])
     test = ILL[illL // 10 * Config.seed:]
+    all_ent1_list, all_ent2_list = get_ent_list(np.array(ILL))
 
+    # ae need: 实体-属性矩阵, 实体-实体矩阵, 1
+    ae_input, support, num_supports = load_ae_data(Config.lang)
+
+    # se need
     KG1 = loadfile(Config.kg1, 3)
-    KG2 = loadfile(Config.kg2, 3)
+    KG2 = loadfile(Config.kg2, 3) 
 
-    # Load data
-    ae_input = load_ae_data(Config.lang)
+    # init tf 环境 == clear
+    tf.reset_default_graph()
 
-    model_func = GCN_Align
+    # build ae obj
+    sess_ae, model_ae = ae_session_init(train, ae_input, support, num_supports)
 
-    # 实体的数量
-    e = ae_input[2][0]
+    # build se obj
+    sess_se, op_se, output_layer_se, loss_se = se_session_init(e, train, KG1, KG2)
 
-    ph_ae = {
-        'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
-        # tf.placeholder(tf.float32),
-        'features': tf.sparse_placeholder(tf.float32),
-        'dropout': tf.placeholder_with_default(0., shape=()),
-        'num_features_nonzero': tf.placeholder_with_default(0, shape=())
-    }
-    # TODO(zdh) 校验参数
-    model_ae = model_func(ph_ae, input_dim=ae_input[2][1], output_dim=Config.ae_dim,
-                          ILL=train, sparse_inputs=True, featureless=False, logging=True)
-
-
-    feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
-    feed_dict_ae.update({ph_ae['dropout']: FLAGS.dropout})
-
-    output_layer, loss = build(
-        Config.dim, Config.act_func, Config.alpha, Config.beta, Config.gamma, Config.k, Config.language[0:2], e, train, KG1 + KG2)
-    vec, J = training(output_layer, loss, 0.001,
-                      Config.epochs, train, e, Config.k, test)
-    print('loss:', J)
-    print('Result:')
-    get_hits(vec, test)
+    # train
+    training(sess_se, output_layer_se, loss_se, op_se,
+          sess_ae, model_ae, ae_input, support, num_supports, 
+          Config.epochs, Config.neg_K, train, test, all_ent1_list, all_ent2_list)

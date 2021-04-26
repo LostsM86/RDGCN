@@ -1,222 +1,123 @@
-from layers import *
-from metrics import *
-from inits import *
+def get_neg(ILL, cand_ent_list, other_ILL, output_layer, k):
+    # ILL_R, all_ent1_list,  ILL_L, out, k)
+    neg = []
+    t = len(ILL)
+    ILL_vec = np.array([output_layer[e1] for e1 in ILL])
+    cand_ent_vec = np.array([output_layer[e2] for e2 in cand_ent_list])
+    sim = scipy.spatial.distance.cdist(ILL_vec, cand_ent_vec, metric='cityblock')
+    # KG_vec = np.array(output_layer)
+    # sim = scipy.spatial.distance.cdist(ILL_vec, KG_vec, metric='cityblock')
+    for i in range(t):
+        rank = sim[i, :].argsort()
+        for j in rank[0:k+1]:
+            if cand_ent_list[j] != other_ILL[i]:
+                neg.append(cand_ent_list[j])
+        if len(neg) == (i + 1) * k + 1:
+            neg = neg[:-1]
+    neg = np.array(neg)
+    neg = neg.reshape((t * k,))
+    return neg
 
-flags = tf.app.flags
-FLAGS = flags.FLAGS
+def ae_session_init(train, ae_input, support, num_supports):
+    ph_ae = {
+        'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
+        'features': tf.sparse_placeholder(tf.float32), #tf.placeholder(tf.float32),
+        'dropout': tf.placeholder_with_default(0., shape=()),
+        'num_features_nonzero': tf.placeholder_with_default(0, shape=())
+    }
+    model_ae = GCN_Align(ph_ae, input_dim=ae_input[2][1], output_dim=Config.ae_dim,
+                       ILL=train, sparse_inputs=True, featureless=False, logging=True)
+    sess = tf.Session()
+    sess.run(model_ae.init)
+    return sess, model_ae
 
+def se_session_init(e, train, KG1, KG2):
+    sess, train_step, output_layer, loss = build(Config.dim, Config.act_func, Config.alpha,
+                               Config.beta, Config.gamma, Config.k, Config.language[0:2], e, train, KG1 + KG2)
+    return sess, train_step, output_layer, loss 
 
-class Model(object):
-    def __init__(self, **kwargs):
-        allowed_kwargs = {'name', 'logging'}
-        for kwarg in kwargs.keys():
-            assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
-        name = kwargs.get('name')
-        if not name:
-            name = self.__class__.__name__.lower()
-        self.name = name
+def training(sess_se, output_layer_se, loss_se, op_se,
+          sess_ae, model_ae, ae_input, support, num_supports, 
+          epochs, neg_K, train, test, all_ent1_list, all_ent2_list):
+    # init some data
+    last_k_loss_se, last_k_loss_ae = [], []
+    last_k_loss_ae = []
+    labeled_alignment = set()
+    ents1, ents2 = [], []
+    train_len = len(train)
 
-        logging = kwargs.get('logging', False)
-        self.logging = logging
+    # ae feeddict init
+    feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
+    feed_dict_ae.update({ph_ae['dropout']: FLAGS.dropout})
 
-        self.vars = {}
-        self.placeholders = {}
+    # base half neg data
+    train = np.array(train)
+    train_left = train[:, 0] 
+    train_right = train[:, 1]
+    T = np.ones((train_len, neg_nums)) * (train_left.reshape((train_len, 1)))
+    neg_left = T.reshape((train_len * neg_nums,))
+    T = np.ones((train_len, neg_nums)) * (train_right.reshape((train_len, 1)))
+    neg2_right = T.reshape((train_len * neg_nums,))
 
-        self.layers = []
-        self.activations = []
+    # ae 由于未预编码，得先训练30个epoch
+    for epoch in range(30):
+        if epoch == 0:
+            neg2_left = np.random.choice(e, t * k)
+            neg_right = np.random.choice(e, t * k)
+        feed_dict_ae.update({'neg_left:0': neg_left, 'neg_right:0': ae_neg_right, 'neg2_left:0': ae_neg2_left, 'neg2_right:0': neg2_right})
+        outs_ae = sess_ae.run([model_ae.opt_op, model_ae.loss, model_ae.outputs], feed_dict=feed_dict_ae)
+        print("Epoch:", '%04d' % epoch, "AE_train_loss=", "{:.5f}".format(outs_ae[1]))
+        neg_right = get_neg(train_left, all_ent2_list, train_right, ae_outvec, neg_K)
+        neg2_left = get_neg(train_right, all_ent1_list, train_left, ae_outvec, neg_K)
 
-        self.inputs = None
-        self.outputs = None
+    align_left = train_left
+    align_right = train_right
+    for epoch in range(epochs):
+        # get outvec & get hits & bootstrap
+        vecs_se = sess_se.run(output_layer_se)
+        vecs_ae = sess_ae.run(model_ae.outputs, feed_dict=feed_dict_ae)
 
-        self.loss = 0
-        self.accuracy = 0
-        self.optimizer = None
-        self.opt_op = None
+        if epoch in range(20, epochs, 5):
+            get_hits(vecs_se, test)
+            get_hits(vecs_ae, test)
+            get_combine_hits(vecs_se, vecs_ae, COnfig.combine_loss_beta, test)
+        
+            labeled_alignment, ents1, ents2 \
+                = bootstrap(vecs_se, vecs_ae, test, labeled_alignment)
+            
+            if ents1 != []:
+                align_left = np.append(train_left, np.array(ents1))
+                align_right = np.append(train_right, np.array(ents2))
 
-    def _build(self):
-        raise NotImplementedError
+        # train se
+        neg_right = get_neg(align_left, all_ent2_list, align_right, se_outvec, neg_K)
+        neg2_left = get_neg(align_right, all_ent1_list, align_left, se_outvec, neg_K)
+        feed_dict_se = {"neg_left:0": neg_left,
+                    "neg_right:0": neg_right,
+                    "neg2_left:0": neg2_left,
+                    "neg2_right:0": neg2_right}
+        _, l_s = sess_se.run([op_se, loss_se], feed_dict=feed_dict_se)
+        last_k_loss_se.append(l_s)
 
-    def build(self):
-        """ Wrapper for _build() """
-        with tf.variable_scope(self.name):
-            self._build()
+        # train ae
+        neg_right = get_neg(align_left, all_ent2_list, align_right, ae_outvec, neg_K)
+        neg2_left = get_neg(align_right, all_ent1_list, align_left, ae_outvec, neg_K) 
+        feed_dict_ae.update({'neg_left:0': neg_left, 'neg_right:0': neg_right, 'neg2_left:0': neg2_left, 'neg2_right:0': neg2_right})
+        _, l_a = sess_ae.run([model_ae.opt_op, model_ae.loss], feed_dict=feed_dict_ae)
+        last_k_loss_ae.append(l_a)
 
-        # Build sequential layer model
-        self.activations.append(self.inputs)
-        for layer in self.layers:
-            hidden = layer(self.activations[-1])
-            self.activations.append(hidden)
-        self.outputs = self.activations[-1]
+        # print loss 
+        print("Epoch:", '%04d' % epoch, "AE_train_loss=", "{:.5f}".format(l_a), "SE_train_loss=", "{:.5f}".format(l_s))
 
-        # Store model variables for easy access
-        variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
-        self.vars = {var.name: var for var in variables}
-
-        # Build metrics
-        self._loss()
-        self._accuracy()
-
-        self.opt_op = self.optimizer.minimize(self.loss)
-
-    def predict(self):
-        pass
-
-    def _loss(self):
-        raise NotImplementedError
-
-    def _accuracy(self):
-        raise NotImplementedError
-
-    def save(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = saver.save(sess, "tmp/%s.ckpt" % self.name)
-        print("Model saved in file: %s" % save_path)
-
-    def load(self, sess=None):
-        if not sess:
-            raise AttributeError("TensorFlow session not provided.")
-        saver = tf.train.Saver(self.vars)
-        save_path = "tmp/%s.ckpt" % self.name
-        saver.restore(sess, save_path)
-        print("Model restored from file: %s" % save_path)
-
-
-class MLP(Model):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(MLP, self).__init__(**kwargs)
-
-        self.inputs = placeholders['features']
-        self.input_dim = input_dim
-        # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
-        self.output_dim = placeholders['labels'].get_shape().as_list()[1]
-        self.placeholders = placeholders
-
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-
-        self.build()
-
-    def _loss(self):
-        # Weight decay loss
-        for var in self.layers[0].vars.values():
-            self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
-
-        # Cross entropy error
-        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
-                                                  self.placeholders['labels_mask'])
-
-    def _accuracy(self):
-        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
-                                        self.placeholders['labels_mask'])
-
-    def _build(self):
-        self.layers.append(Dense(input_dim=self.input_dim,
-                                 output_dim=FLAGS.hidden1,
-                                 placeholders=self.placeholders,
-                                 act=tf.nn.relu,
-                                 dropout=True,
-                                 sparse_inputs=True,
-                                 logging=self.logging))
-
-        self.layers.append(Dense(input_dim=FLAGS.hidden1,
-                                 output_dim=self.output_dim,
-                                 placeholders=self.placeholders,
-                                 act=lambda x: x,
-                                 dropout=True,
-                                 logging=self.logging))
-
-    def predict(self):
-        return tf.nn.softmax(self.outputs)
-
-
-class GCN(Model):
-    def __init__(self, placeholders, input_dim, **kwargs):
-        super(GCN, self).__init__(**kwargs)
-
-        self.inputs = placeholders['features']
-        self.input_dim = input_dim
-        # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
-        self.output_dim = placeholders['labels'].get_shape().as_list()[1]
-        self.placeholders = placeholders
-
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-
-        self.build()
-
-    def _loss(self):
-        # Weight decay loss
-        for var in self.layers[0].vars.values():
-            self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
-
-        # Cross entropy error
-        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
-                                                  self.placeholders['labels_mask'])
-
-    def _accuracy(self):
-        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
-                                        self.placeholders['labels_mask'])
-
-    def _build(self):
-
-        self.layers.append(GraphConvolution(input_dim=self.input_dim,
-                                            output_dim=FLAGS.hidden1,
-                                            placeholders=self.placeholders,
-                                            act=tf.nn.relu,
-                                            dropout=True,
-                                            sparse_inputs=True,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
-                                            output_dim=self.output_dim,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: x,
-                                            dropout=True,
-                                            logging=self.logging))
-
-    def predict(self):
-        return tf.nn.softmax(self.outputs)
-
-
-class GCN_Align(Model):
-    def __init__(self, placeholders, input_dim, output_dim, ILL, sparse_inputs=False, featureless=True, **kwargs):
-        super(GCN_Align, self).__init__(**kwargs)
-
-        self.inputs = placeholders['features']
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        self.placeholders = placeholders
-        self.ILL = ILL
-        self.sparse_inputs = sparse_inputs
-        self.featureless = featureless
-
-        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=FLAGS.learning_rate)
-
-        self.build()
-
-    def _loss(self):
-        self.loss += align_loss(self.outputs, self.ILL, FLAGS.gamma, FLAGS.k)
-
-    def _accuracy(self):
-        pass
-
-    def _build(self):
-
-        self.layers.append(GraphConvolution(input_dim=self.input_dim,
-                                            output_dim=self.output_dim,
-                                            placeholders=self.placeholders,
-                                            act=tf.nn.relu,
-                                            dropout=False,
-                                            featureless=self.featureless,
-                                            sparse_inputs=self.sparse_inputs,
-                                            transform=False,
-                                            init=trunc_normal,
-                                            logging=self.logging))
-
-        self.layers.append(GraphConvolution(input_dim=self.output_dim,
-                                            output_dim=self.output_dim,
-                                            placeholders=self.placeholders,
-                                            act=lambda x: x,
-                                            dropout=False,
-                                            transform=False,
-                                            logging=self.logging))
+        # early_stopping
+        if epoch > Config.early_stopping \
+            and last_k_loss_ae[-1] > np.mean(last_k_loss_ae[-(Config.early_stopping + 1):-1])\
+            and last_k_loss_se[-1] > np.mean(last_k_loss_se[-(Config.early_stopping + 1):-1]):
+            print("Early stopping...")
+            break
+    
+    vecs_se = sess_se.run(output_layer_se)
+    vecs_ae = sess_ae.run(model_ae.outputs, feed_dict=feed_dict_ae) 
+    get_hits(vecs_se, test)
+    get_hits(vecs_ae, test)
+    get_combine_hits(vecs_se, vecs_ae, COnfig.combine_loss_beta, test)

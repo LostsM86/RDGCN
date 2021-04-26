@@ -14,5 +14,5 @@ class Config:
 	alpha = 0.1
 	beta = 0.3
 	gamma = 1.0  # margin based loss
-	k = 125  # number of negative samples for each positive one
+	neg_K = 125  # number of negative samples for each positive one
 	seed = 3  # 30% of seeds
