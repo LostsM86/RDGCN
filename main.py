@@ -1,9 +1,3 @@
-import tensorflow as tf
-from include.Config import Config
-from include.Model import build, training
-from include.Test import get_hits
-from include.Load import *
-from include.utils import *
 from include.models import *
 
 import warnings
@@ -41,12 +35,12 @@ if __name__ == '__main__':
     tf.reset_default_graph()
 
     # build ae obj
-    sess_ae, model_ae = ae_session_init(train, ae_input, support, num_supports)
+    sess_ae, ph_ae, model_ae = ae_session_init(train, ae_input, num_supports)
 
     # build se obj
     sess_se, op_se, output_layer_se, loss_se = se_session_init(e, train, KG1, KG2)
 
     # train
     training(sess_se, output_layer_se, loss_se, op_se,
-          sess_ae, model_ae, ae_input, support, num_supports, 
-          Config.epochs, Config.neg_K, train, test, all_ent1_list, all_ent2_list)
+             sess_ae, model_ae, ae_input, support, ph_ae,
+             e, Config.epochs, Config.neg_K, train, test, all_ent1_list, all_ent2_list)

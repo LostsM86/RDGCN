@@ -1,15 +1,8 @@
 import numpy as np
-import pickle as pkl
-import networkx as nx
 import scipy
 import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
-import sys
-import tensorflow as tf
 import math
-
-flags = tf.app.flags
-FLAGS = flags.FLAGS
 
 
 def sparse_to_tuple(sparse_mx):
