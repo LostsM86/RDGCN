@@ -11,9 +11,9 @@ class Config:
 
 	seed = 3		# 30% of seeds
 	epochs = 600
-	neg_K = 125		# number of negative samples for each positive one
 	combine_loss_beta = 0.9		# se_loss的比重
 	early_stopping = 40		# early stopping
+	# neg_K = 45
 
 	# SE setting
 	dim = 300
@@ -21,8 +21,16 @@ class Config:
 	alpha = 0.1
 	beta = 0.3
 	gamma = 1.0		# margin based loss of SE
-	learning_rate = 0.001
+	se_learning_rate = 0.001
+	se_neg_K = 145  # number of negative samples for each positive one of SE
 
 	# AE setting
 	dropout = 0.		# Dropout rate (1 - keep probability)
 	ae_gamma = 3.0 		# Hyper-parameter for margin based loss of AE
+	ae_dim = 300
+	ae_neg_K = 45		# number of negative samples for each positive one of AE
+	ae_learning_rate = 15		# Initial learning rate of AE
+
+	# bootstrap setting
+	th = [0.7, 0.7]		# Threshold of [SE, AE]
+	boot_K = [40, 20]		# 取boot_K对作为输入到二分图的结果

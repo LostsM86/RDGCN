@@ -1,6 +1,9 @@
 import tensorflow as tf
 import numpy as np
-import scipy
+import scipy.spatial as T
+
+import functools
+print = functools.partial(print, flush=True)
 
 
 def masked_softmax_cross_entropy(preds, labels, mask):
@@ -29,10 +32,10 @@ def get_placeholder_by_name(name):
         return tf.placeholder(tf.int32, name=name)
 
 
-def align_loss(outlayer, ILL, gamma, k):
-    left = ILL[:, 0]
-    right = ILL[:, 1]
-    t = len(ILL)
+def align_loss(outlayer, gamma, k):
+    left = get_placeholder_by_name("ILL_left")
+    right = get_placeholder_by_name("ILL_right")
+    t = tf.shape(left)[0]
     left_x = tf.nn.embedding_lookup(outlayer, left)
     right_x = tf.nn.embedding_lookup(outlayer, right)
     A = tf.reduce_sum(tf.abs(left_x - right_x), 1)
@@ -51,13 +54,15 @@ def align_loss(outlayer, ILL, gamma, k):
     B = tf.reduce_sum(tf.abs(neg_l_x - neg_r_x), 1)
     C = - tf.reshape(B, [t, k])
     L2 = tf.nn.relu(tf.add(C, tf.reshape(D, [t, 1])))
+
+    t = tf.cast(t, tf.float32)
     return (tf.reduce_sum(L1) + tf.reduce_sum(L2)) / (2.0 * k * t)
 
 
 def get_hits(vec, test_pair, top_k=(1, 10, 50, 100)):
     Lvec = np.array([vec[e1] for e1, e2 in test_pair])
     Rvec = np.array([vec[e2] for e1, e2 in test_pair])
-    sim = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')
+    sim = T.distance.cdist(Lvec, Rvec, metric='cityblock')
     top_lr = [0] * len(top_k)
     for i in range(Lvec.shape[0]):
         rank = sim[i, :].argsort()

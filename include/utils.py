@@ -3,6 +3,12 @@ import scipy
 import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import math
+import time
+import os
+from include.Config import Config
+
+import functools
+print = functools.partial(print, flush=True)
 
 
 def sparse_to_tuple(sparse_mx):
@@ -186,6 +192,7 @@ def ifunc(KG):
         r2if[r] = len(tail[r]) / cnt[r]
     return r2if
 
+
 def idf_func(kg1, kg2):
     r2idf = {}
     l1 = len(kg1)
@@ -214,6 +221,7 @@ def idf_func(kg1, kg2):
         r2idf[r] = (r2idf[r] - min_idf) / (max_idf - min_idf)
     return r2idf
 
+
 def get_weighted_adj(e, kg1, kg2):
     KG = kg1 + kg2
     r2f = func(KG)
@@ -221,20 +229,17 @@ def get_weighted_adj(e, kg1, kg2):
     r2idf = idf_func(kg1, kg2)
     M = {}
     for tri in KG:
+        # todo(zyj) 转成自环图
         if tri[0] == tri[2]:
             continue
         if (tri[0], tri[2]) not in M:
             M[(tri[0], tri[2])] = max(r2if[tri[1]] * r2idf[tri[1]], 0.3)
-            # M[(tri[0], tri[2])] = max(r2if[tri[1]], 0.3)
         else:
             M[(tri[0], tri[2])] += max(r2if[tri[1]] * r2idf[tri[1]], 0.3)
-            # M[(tri[0], tri[2])] += max(r2if[tri[1]], 0.3)
         if (tri[2], tri[0]) not in M:
             M[(tri[2], tri[0])] = max(r2f[tri[1]] * r2idf[tri[1]], 0.3)
-            # M[(tri[2], tri[0])] = max(r2f[tri[1]], 0.3)
         else:
             M[(tri[2], tri[0])] += max(r2f[tri[1]] * r2idf[tri[1]], 0.3)
-            # M[(tri[2], tri[0])] += max(r2f[tri[1]], 0.3)
     row = []
     col = []
     data = []
@@ -254,25 +259,82 @@ def get_ent_list(pair):
     return nppair[:, 0], nppair[:, 1]
 
 
-def load_ae_data(dataset_str):
-    attrs = ['training_attrs_1', 'training_attrs_2']
-    for i in range(len(attrs)):
-        As[i] = 'data/' + dataset_str + '/' + attrs[i]
-    
-    ents = ['ent_ids_1', 'ent_ids_2']
-    for i in range(len(attrs)):
-        Es[i] = 'data/' + dataset_str + '/' + attrs[i]
+def get_all_attr(attr, sup_pairs):
+    all_attr = attr.todense()
+    one_list = [1.0 for i in range(all_attr.shape[1])]
+    for e1, e2 in sup_pairs:
+        all_attr[e1] = list(np.minimum(all_attr[e1] + all_attr[e2], one_list))
+        all_attr[e2] = all_attr[e1]
+    return sp.coo_matrix(all_attr)
 
-    ent2id = get_ent2id([Es[0], Es[1]])
+
+def get_all_kg(kg1, kg2, train):
+    left = train[:, 0]
+    right = train[:, 1]
+    all_kg1 = kg1
+    all_kg2 = kg2
+    for tri in kg1:
+        if tri[0] in left:
+            h = right[np.argwhere(left == tri[0])][0][0]
+            all_kg1.append((h, tri[1], tri[2]))
+        if tri[2] in left:
+            t = right[np.argwhere(left == tri[2])][0][0]
+            all_kg1.append((tri[0], tri[1], t))
+        if tri[0] in left and tri[2] in left:
+            all_kg1.append((h, tri[1], t))
+
+    for tri in kg2:
+        if tri[0] in right:
+            h = left[np.argwhere(right == tri[0])][0][0]
+            all_kg2.append((h, tri[1], tri[2]))
+        if tri[2] in right:
+            t = left[np.argwhere(right == tri[2])][0][0]
+            all_kg2.append((tri[0], tri[1], t))
+        if tri[0] in right and tri[2] in right:
+            all_kg2.append((h, tri[1], t))
+    return all_kg1, all_kg2
+
+
+def load_ae_data(dataset_str, e, KG1, KG2, train):
+    As = ['data/' + dataset_str + '/' + 'training_attrs_1', 'data/' + dataset_str + '/' + 'training_attrs_2']
+
+    Es = ['data/' + dataset_str + '/' + 'ent_ids_1', 'data/' + dataset_str + '/' + 'ent_ids_2']
+
+    ent2id = get_ent2id(Es)
 
     # 属性三元组 = 实体=>属性的稀疏矩阵
-    attr = loadattr([As[0], As[1]], e, ent2id)
+    attr = loadattr(As, e, ent2id)
+    all_attr = get_all_attr(attr, train)
 
     # 拿 np 转了一下 ？
-    ae_input = get_ae_input(attr)
+    # ae_input = get_ae_input(attr)
+    ae_input = get_ae_input(all_attr)
 
     # 计算关系的邻接矩阵
-    return ae_input
+    adj = get_weighted_adj(e, KG1, KG2)
+    all_KG1, all_KG2 = get_all_kg(KG1, KG2, train)
+    # adj = get_weighted_adj(e, all_KG1, all_KG2)
+
+    support = [preprocess_adj(adj)]
+
+    num_supports = 1
+
+    return ae_input, support, num_supports, all_attr, all_KG1, all_KG2
+
+
+def get_new_all_ae_data(e, base_attr, base_KG, left, right):
+    train = []
+    for i in range(len(left)):
+        train.append(tuple([left[i], right[i]]))
+
+    all_attr = get_all_attr(base_attr, train)
+    ae_input = get_ae_input(all_attr)
+
+    all_KG1, all_KG2 = get_all_kg(base_KG[0], base_KG[1], np.array(train))
+    adj = get_weighted_adj(e, all_KG1, all_KG2)
+    support = [preprocess_adj(adj)]
+
+    return ae_input, support
 
 
 def generate_new_triples(kg1, kg2, ref_ent_ids):
@@ -304,6 +366,7 @@ def generate_new_triples(kg1, kg2, ref_ent_ids):
     print("kb2: " + str(len(kg2)) + "---+" + str(len(new_kg2_triples))) 
     return new_kg1_triples, new_kg2_triples
 
+
 def generate_negative(entity_dim_matrix, train_L, train_R, neg_nums_per_entity):
     l_edm = np.array([entity_dim_matrix[e1] for e1 in train_L])
     r_edm = np.array([entity_dim_matrix[e2] for e2 in train_R])
@@ -333,5 +396,46 @@ def generate_negative(entity_dim_matrix, train_L, train_R, neg_nums_per_entity):
                 l = l + 1
             else:
                 break
-
     return np.array(neg_right), np.array(neg_left)
+
+def get_neg(ILL, cand_ent_list, other_ILL, output_layer, k):
+    # ILL_R, all_ent1_list,  ILL_L, out, k)
+    neg = []
+    t = len(ILL)
+    ILL_vec = np.array([output_layer[e1] for e1 in ILL])
+    cand_ent_vec = np.array([output_layer[e2] for e2 in cand_ent_list])
+    sim = scipy.spatial.distance.cdist(ILL_vec, cand_ent_vec, metric='cityblock')
+    for i in range(t):
+        rank = sim[i, :].argsort()
+        for j in rank[0:k+1]:
+            if cand_ent_list[j] != other_ILL[i]:
+                neg.append(cand_ent_list[j])
+        if len(neg) == (i + 1) * k + 1:
+            neg = neg[:-1]
+    neg = np.array(neg)
+    neg = neg.reshape((t * k,))
+    return neg
+
+
+def store_vecs(vecs_se, vecs_ae):
+    print('#### writing vec file...')
+    time_str = time.strftime("%m-%d-%H-%M", time.localtime())
+    path = './data/' + Config.language + '/' + time_str
+    if not os.path.exists(path):
+        os.mkdir(path)
+    fw = open('./data/' + Config.language + '/' + time_str + '/se_vec.txt', 'w')
+    for vec in vecs_se:
+        line = ''
+        for v in vec:
+            line += str(v) + ' '
+        line += '\n'
+        fw.write(line)
+    fw.close()
+    fw = open('./data/' + Config.language + '/' + time_str + '/ae_vec.txt', 'w')
+    for vec in vecs_ae:
+        line = ''
+        for v in vec:
+            line += str(v) + ' '
+        line += '\n'
+        fw.write(line)
+    fw.close()

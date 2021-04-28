@@ -1,4 +1,4 @@
-from inits import *
+from include.inits import *
 import tensorflow as tf
 
 # global unique layer ID dictionary for layer name assignment
