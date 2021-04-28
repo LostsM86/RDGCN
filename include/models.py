@@ -185,7 +185,5 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
     get_hits(vecs_ae, test)
     get_all_combine_hits(vecs_se, vecs_ae, Config.beta_list, test)
 
-    store_vecs(vecs_se, vecs_ae)
-
     sess_se.close()
     sess_ae.close()
