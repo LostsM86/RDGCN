@@ -90,7 +90,8 @@ def get_combine_hits(se_vec, ae_vec, beta, test_pair, top_k=(1, 10, 50, 100)):
     get_hits(vec, test_pair, top_k)
 
 
-def get_all_combine_hits(se_vec, ae_vec, test_pair, beta_list):
+def get_all_combine_hits(se_vec, ae_vec, beta_list, test_pair):
     for beta in beta_list:
+        print('beta:', beta)
         get_combine_hits(se_vec, ae_vec, beta, test_pair)
 

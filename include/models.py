@@ -93,6 +93,9 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
         # get outvec & get neg & train SE
         if se_train_flag:
             vecs_se = sess_se.run(output_layer_se)
+            get_all_combine_hits(vecs_se, outs_ae[2], Config.beta_list, test)
+            exit()
+
 
             L = len(align_left_se)
             neg_left = (np.ones((L, se_neg_K), dtype=int) * (align_left_se.reshape((L, 1)))).reshape((L * se_neg_K,))
