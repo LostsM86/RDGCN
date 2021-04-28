@@ -10,7 +10,7 @@ class Config:
 	kg2 = 'data/' + language + '/triples_2'
 
 	seed = 3		# 30% of seeds
-	epochs = 600
+	epochs = 2000
 	combine_loss_beta = 0.9		# se_loss的比重
 	beta_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 	early_stopping = 40		# early stopping
