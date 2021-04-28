@@ -12,6 +12,7 @@ class Config:
 	seed = 3		# 30% of seeds
 	epochs = 600
 	combine_loss_beta = 0.9		# se_loss的比重
+	beta_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 	early_stopping = 40		# early stopping
 	# neg_K = 45
 
@@ -21,7 +22,8 @@ class Config:
 	alpha = 0.1
 	beta = 0.3
 	gamma = 1.0		# margin based loss of SE
-	se_learning_rate = 0.001
+	# se_learning_rate = 0.001
+	se_learning_rate = 0.01
 	se_neg_K = 145  # number of negative samples for each positive one of SE
 
 	# AE setting
@@ -29,7 +31,7 @@ class Config:
 	ae_gamma = 3.0 		# Hyper-parameter for margin based loss of AE
 	ae_dim = 300
 	ae_neg_K = 45		# number of negative samples for each positive one of AE
-	ae_learning_rate = 15		# Initial learning rate of AE
+	ae_learning_rate = 0.1		# Initial learning rate of AE
 
 	# bootstrap setting
 	th = [0.7, 0.7]		# Threshold of [SE, AE]

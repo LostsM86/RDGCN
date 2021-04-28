@@ -32,6 +32,7 @@ class Model(object):
         self.accuracy = 0
         self.optimizer = None
         self.opt_op = None
+        self.global_step = None
 
     def _build(self):
         raise NotImplementedError
@@ -56,7 +57,8 @@ class Model(object):
         self._loss()
         self._accuracy()
 
-        self.opt_op = self.optimizer.minimize(self.loss)
+        # self.opt_op = self.optimizer.minimize(self.loss)
+        self.opt_op = tf.train.GradientDescentOptimizer(self.optimizer).minimize(self.loss, self.global_step)
 
     def predict(self):
         pass
@@ -95,7 +97,9 @@ class GCN_Align(Model):
         self.sparse_inputs = sparse_inputs
         self.featureless = featureless
 
-        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=Config.ae_learning_rate)
+        # self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=Config.ae_learning_rate)
+        self.global_step = tf.Variable(0, trainable=False)
+        self.optimizer = tf.train.exponential_decay(Config.ae_learning_rate, self.global_step, 10, 0.96, False)
 
         self.build()
 

@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from include.Config import Config
-from include.metrics import get_hits, get_combine_hits
+from include.metrics import get_hits, get_combine_hits, get_all_combine_hits
 from include.Model_AE import GCN_Align
 from include.Model_SE import build
 from include.utils import *
@@ -67,7 +67,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
     # ae feeddict init
     feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
     feed_dict_ae.update({ph_ae['dropout']: Config.dropout})
-    for epoch in range(30):
+    for epoch in range(1):
         if epoch == 0:
             neg2_left = np.random.choice(e, L * ae_neg_K)
             neg_right = np.random.choice(e, L * ae_neg_K)
@@ -79,9 +79,9 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                              "ILL_right:0": train_right})
         outs_ae = sess_ae.run([model_ae.opt_op, model_ae.loss, model_ae.outputs], feed_dict=feed_dict_ae)
         print("Epoch:", '%04d' % epoch, "AE_train_loss=", "{:.5f}".format(outs_ae[1]))
-        neg_right = get_neg(train_left, all_ent_list[1], train_right, outs_ae[2], ae_neg_K)
-        neg2_left = get_neg(train_right, all_ent_list[0], train_left, outs_ae[2], ae_neg_K)
-    get_hits(outs_ae[2], test)
+    #     neg_right = get_neg(train_left, all_ent_list[1], train_right, outs_ae[2], ae_neg_K)
+    #     neg2_left = get_neg(train_right, all_ent_list[0], train_left, outs_ae[2], ae_neg_K)
+    # get_hits(outs_ae[2], test)
 
     align_left_se = train_left
     align_right_se = train_right
@@ -134,7 +134,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
 
         # get hits & bootstrap
         # if epoch in range(1, epochs, 5):
-        if epoch % 5 == 0:
+        if epoch % 15 == 0:
             if se_train_flag:
                 print('SE')
                 get_hits(vecs_se, test)
@@ -149,12 +149,13 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                     = bootstrapping(vecs_se, test, labeled_alignment_se, th[0], boot_K[0])
                 labeled_alignment_ae, ents1_ae, ents2_ae \
                     = bootstrapping(vecs_ae, test, labeled_alignment_ae, th[1], boot_K[1])
+                # ents1_se, ents2_se, ents1_ae, ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
                 print(labeled_alignment_se)
                 print(labeled_alignment_ae)
             if ents1_se != []:
                 align_left_ae = np.append(train_left, np.array(ents1_se))
                 align_right_ae = np.append(train_right, np.array(ents2_se))
-                ae_input, _ = get_new_all_ae_data(e, base_attr, base_KG, align_left_ae, align_right_ae)
+                ae_input, support = get_new_all_ae_data(e, base_attr, base_KG, align_left_ae, align_right_ae)
                 feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
                 feed_dict_ae.update({ph_ae['dropout']: Config.dropout})
 
@@ -179,7 +180,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
     vecs_ae = sess_ae.run(model_ae.outputs, feed_dict=feed_dict_ae)
     get_hits(vecs_se, test)
     get_hits(vecs_ae, test)
-    get_combine_hits(vecs_se, vecs_ae, Config.combine_loss_beta, test)
+    get_all_combine_hits(vecs_se, vecs_ae, Config.beta_list, test)
 
     store_vecs(vecs_se, vecs_ae)
 

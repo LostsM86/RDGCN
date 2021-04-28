@@ -311,9 +311,9 @@ def load_ae_data(dataset_str, e, KG1, KG2, train):
     ae_input = get_ae_input(all_attr)
 
     # 计算关系的邻接矩阵
-    adj = get_weighted_adj(e, KG1, KG2)
+    # adj = get_weighted_adj(e, KG1, KG2)
     all_KG1, all_KG2 = get_all_kg(KG1, KG2, train)
-    # adj = get_weighted_adj(e, all_KG1, all_KG2)
+    adj = get_weighted_adj(e, all_KG1, all_KG2)
 
     support = [preprocess_adj(adj)]
 
@@ -439,3 +439,12 @@ def store_vecs(vecs_se, vecs_ae):
         line += '\n'
         fw.write(line)
     fw.close()
+
+# def del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae):
+#     ents_se_list = []
+#     for i in range(len(ents1_se)):
+#         ents_se_list.append(tuple([ents1_se[i], ents2_se[i]]))
+#     ents_ae_list = []
+#     for i in range(len(ents1_ae)):
+#         ents_ae_list.append(tuple([ents1_ae[i], ents2_ae[i]]))
+#

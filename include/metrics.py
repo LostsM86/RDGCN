@@ -88,3 +88,9 @@ def get_hits(vec, test_pair, top_k=(1, 10, 50, 100)):
 def get_combine_hits(se_vec, ae_vec, beta, test_pair, top_k=(1, 10, 50, 100)):
     vec = np.concatenate([se_vec*beta, ae_vec*(1.0-beta)], axis=1)
     get_hits(vec, test_pair, top_k)
+
+
+def get_all_combine_hits(se_vec, ae_vec, test_pair, beta_list):
+    for beta in beta_list:
+        get_combine_hits(se_vec, ae_vec, beta, test_pair)
+
