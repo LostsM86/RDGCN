@@ -165,10 +165,9 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
             #     align_left_se = np.append(train_left, np.array(ents1_ae))
             #     align_right_se = np.append(train_right, np.array(ents2_ae))
 
-            continue
 
         # early_stopping
-        if (epoch - 1) % 10 == 0:
+        if (epoch - 1) % 10 != 0:
             if ae_train_flag and epoch > Config.early_stopping \
                     and last_k_loss_ae[-1] > np.mean(last_k_loss_ae[-(Config.early_stopping + 1):-1]):
                 print('AE early stopping...')
