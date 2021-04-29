@@ -149,11 +149,11 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
             if se_train_flag & ae_train_flag:
                 labeled_alignment_se, ents1_se, ents2_se \
                     = bootstrapping(vecs_se, test, labeled_alignment_se, th[0], boot_K[0])
-                labeled_alignment_ae, ents1_ae, ents2_ae \
-                    = bootstrapping(vecs_ae, test, labeled_alignment_ae, th[1], boot_K[1])
+                # labeled_alignment_ae, ents1_ae, ents2_ae \
+                #     = bootstrapping(vecs_ae, test, labeled_alignment_ae, th[1], boot_K[1])
                 # ents1_se, ents2_se, ents1_ae, ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
                 print(labeled_alignment_se)
-                print(labeled_alignment_ae)
+                # print(labeled_alignment_ae)
             if ents1_se != []:
                 align_left_ae = np.append(train_left, np.array(ents1_se))
                 align_right_ae = np.append(train_right, np.array(ents2_se))
@@ -161,9 +161,9 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                 feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
                 feed_dict_ae.update({ph_ae['dropout']: Config.dropout})
 
-            if ents1_ae != []:
-                align_left_se = np.append(train_left, np.array(ents1_ae))
-                align_right_se = np.append(train_right, np.array(ents2_ae))
+            # if ents1_ae != []:
+            #     align_left_se = np.append(train_left, np.array(ents1_ae))
+            #     align_right_se = np.append(train_right, np.array(ents2_ae))
 
             continue
 
