@@ -168,17 +168,18 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
             continue
 
         # early_stopping
-        if ae_train_flag and epoch > Config.early_stopping \
-                and last_k_loss_ae[-1] > np.mean(last_k_loss_ae[-(Config.early_stopping + 1):-1]):
-            print('AE early stopping...')
-            ae_train_flag = False
-        if se_train_flag and epoch > Config.early_stopping \
-                and last_k_loss_se[-1] > np.mean(last_k_loss_se[-(Config.early_stopping + 1):-1]):
-            print('SE early stopping...')
-            se_train_flag = False
-        if ae_train_flag is False and se_train_flag is False:
-            print("Early stopping...")
-            break
+        if (epoch - 1) % 10 == 0:
+            if ae_train_flag and epoch > Config.early_stopping \
+                    and last_k_loss_ae[-1] > np.mean(last_k_loss_ae[-(Config.early_stopping + 1):-1]):
+                print('AE early stopping...')
+                ae_train_flag = False
+            if se_train_flag and epoch > Config.early_stopping \
+                    and last_k_loss_se[-1] > np.mean(last_k_loss_se[-(Config.early_stopping + 1):-1]):
+                print('SE early stopping...')
+                se_train_flag = False
+            if ae_train_flag is False and se_train_flag is False:
+                print("Early stopping...")
+                break
     
     vecs_se = sess_se.run(output_layer_se)
     vecs_ae = sess_ae.run(model_ae.outputs, feed_dict=feed_dict_ae)
