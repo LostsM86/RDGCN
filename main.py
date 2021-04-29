@@ -36,7 +36,7 @@ if __name__ == '__main__':
     sess_ae, ph_ae, model_ae = ae_session_init(train, ae_input, num_supports)
 
     # build se obj
-    sess_se, op_se, output_layer_se, loss_se = se_session_init(e, train, KG1, KG2)
+    sess_se, op_se, output_layer_se, loss_se= se_session_init(e, train, KG1, KG2)
 
     # train
     training(sess_se, output_layer_se, loss_se, op_se, Config.se_neg_K,

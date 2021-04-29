@@ -311,9 +311,9 @@ def load_ae_data(dataset_str, e, KG1, KG2, train):
     ae_input = get_ae_input(all_attr)
 
     # 计算关系的邻接矩阵
-    # adj = get_weighted_adj(e, KG1, KG2)
+    adj = get_weighted_adj(e, KG1, KG2)
     all_KG1, all_KG2 = get_all_kg(KG1, KG2, train)
-    adj = get_weighted_adj(e, all_KG1, all_KG2)
+    # adj = get_weighted_adj(e, all_KG1, all_KG2)
 
     support = [preprocess_adj(adj)]
 

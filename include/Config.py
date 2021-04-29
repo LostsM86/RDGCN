@@ -34,5 +34,5 @@ class Config:
 	ae_learning_rate = 0.1		# Initial learning rate of AE
 
 	# bootstrap setting
-	th = [0.7, 0.7]		# Threshold of [SE, AE]
+	th = [0.6, 0.4]		# Threshold of [SE, AE]
 	boot_K = [40, 20]		# 取boot_K对作为输入到二分图的结果
