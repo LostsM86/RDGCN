@@ -24,8 +24,11 @@ def bootstrapping(ents_embedding, ref_pairs, labeled_alignment, th, boot_K):
     # se 实体相似度矩阵
     ref_sim_mat = scipy.spatial.distance.cdist(Lvec, Rvec, metric='cityblock')  # len(ref_pair) * len(ref_pair)
     ref_sim_mat = 1.0 / np.exp(ref_sim_mat)
-    print(np.max(ref_sim_mat))
-    print(np.min(ref_sim_mat))
+    max_ = np.max(ref_sim_mat)
+    min_ = np.min(ref_sim_mat)
+    print(max_)
+    print(min_)
+    ref_sim_mat = (ref_sim_mat - min_) / (max_ - min_)
 
     n = ref_sim_mat.shape[0]
 

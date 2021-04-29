@@ -440,11 +440,30 @@ def store_vecs(vecs_se, vecs_ae):
         fw.write(line)
     fw.close()
 
-# def del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae):
-#     ents_se_list = []
-#     for i in range(len(ents1_se)):
-#         ents_se_list.append(tuple([ents1_se[i], ents2_se[i]]))
-#     ents_ae_list = []
-#     for i in range(len(ents1_ae)):
-#         ents_ae_list.append(tuple([ents1_ae[i], ents2_ae[i]]))
+def del_duplicate(ents1_s, ents2_s, ents1_a, ents2_a):
+    ents_se_list = []
+    for i in range(len(ents1_s)):
+        ents_se_list.append(tuple([ents1_s[i], ents2_s[i]]))
+    ents_ae_list = []
+    for i in range(len(ents1_a)):
+        ents_ae_list.append(tuple([ents1_a[i], ents2_a[i]]))
+
+    clear_se_list = list(set(ents_se_list).difference(set(ents_ae_list)))
+    clear_ae_list = list(set(ents_ae_list).difference(set(ents_se_list)))
+
+    ents1_ae = []
+    ents2_ae = []
+    for e1, e2 in clear_ae_list:
+        ents1_ae.append(e1)
+        ents2_ae.append(e2)
+
+    ents1_se = []
+    ents2_se = []
+    for e1, e2 in clear_se_list:
+        ents1_se.append(e1)
+        ents2_se.append(e2)
+    return ents1_se, ents2_se, ents1_ae, ents2_ae
+
+
+
 #

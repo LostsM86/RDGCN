@@ -2,7 +2,7 @@ import tensorflow as tf
 
 
 class Config:
-	language = 'ja_en'		# zh_en | ja_en | fr_en
+	language = 'zh_en'		# zh_en | ja_en | fr_en
 	e1 = 'data/' + language + '/ent_ids_1'
 	e2 = 'data/' + language + '/ent_ids_2'
 	ill = 'data/' + language + '/ref_ent_ids'
@@ -21,9 +21,9 @@ class Config:
 	act_func = tf.nn.relu
 	alpha = 0.1
 	beta = 0.3
-	gamma = 1.0		# margin based loss of SE
+	gamma = 3.0		# margin based loss of SE
 	# se_learning_rate = 0.001
-	se_learning_rate = 0.01
+	se_learning_rate = 0.001
 	se_neg_K = 145  # number of negative samples for each positive one of SE
 
 	# AE setting
@@ -34,5 +34,5 @@ class Config:
 	ae_learning_rate = 0.1		# Initial learning rate of AE
 
 	# bootstrap setting
-	th = [0.7, 0.7]		# Threshold of [SE, AE]
-	boot_K = [40, 20]		# 取boot_K对作为输入到二分图的结果
+	th = [0.5, 0.65]		# Threshold of [SE, AE]
+	boot_K = [40, 40]		# 取boot_K对作为输入到二分图的结果

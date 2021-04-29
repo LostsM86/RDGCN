@@ -74,7 +74,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
     # ae feeddict init
     feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
     feed_dict_ae.update({ph_ae['dropout']: Config.dropout})
-    for epoch in range(1):
+    for epoch in range(30):
         if epoch == 0:
             neg2_left_ae = np.random.choice(e, L * ae_neg_K)
             neg_right_ae = np.random.choice(e, L * ae_neg_K)
@@ -120,8 +120,12 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                 labeled_alignment_ae, ents1_ae, ents2_ae \
                     = bootstrapping(vecs_ae, test, labeled_alignment_ae, th[1], boot_K[1])
                 # ents1_se, ents2_se, ents1_ae, ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
-                print(labeled_alignment_se)
-                print(labeled_alignment_ae)
+                # print(labeled_alignment_se)
+                # print(labeled_alignment_ae)
+                # print('se find:')
+                # print(len(ents1_se))
+                # print('ae find:')
+                # print(len(ents1_ae))
             if ents1_se != []:
                 align_left_ae = np.append(train_left, np.array(ents1_se))
                 align_right_ae = np.append(train_right, np.array(ents2_se))
@@ -135,15 +139,16 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
 
         # get outvec & get neg & train SE
         if se_train_flag:
-            if epoch % 10 == 0:
-                L = len(align_left_se)
-                neg_left_se = (np.ones((L, se_neg_K), dtype=int) * (align_left_se.reshape((L, 1)))).reshape(
-                    (L * se_neg_K,))
-                neg2_right_se = (np.ones((L, se_neg_K), dtype=int) * (align_right_se.reshape((L, 1)))).reshape(
-                    (L * se_neg_K,))
-                neg_right_se = get_neg(align_left_se, all_ent_list[1], align_right_se, vecs_se, se_neg_K)
-                neg2_left_se = get_neg(align_right_se, all_ent_list[0], align_left_se, vecs_se, se_neg_K)
+            # if epoch % 10 == 0:
+            L = len(align_left_se)
+            neg_left_se = (np.ones((L, se_neg_K), dtype=int) * (align_left_se.reshape((L, 1)))).reshape(
+                (L * se_neg_K,))
+            neg2_right_se = (np.ones((L, se_neg_K), dtype=int) * (align_right_se.reshape((L, 1)))).reshape(
+                (L * se_neg_K,))
+            neg_right_se = get_neg(align_left_se, all_ent_list[1], align_right_se, vecs_se, se_neg_K)
+            neg2_left_se = get_neg(align_right_se, all_ent_list[0], align_left_se, vecs_se, se_neg_K)
 
+            print('align_se:', len(align_left_se))
             feed_dict_se = {"neg_left:0": neg_left_se,
                             "neg_right:0": neg_right_se,
                             "neg2_left:0": neg2_left_se,
@@ -164,6 +169,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                 neg_right_ae = get_neg(align_left_ae, all_ent_list[1], align_right_ae, vecs_ae, ae_neg_K)
                 neg2_left_ae = get_neg(align_right_ae, all_ent_list[0], align_left_ae, vecs_ae, ae_neg_K)
 
+            print('align_ae:', len(align_left_ae))
             feed_dict_ae.update({'neg_left:0': neg_left_ae,
                                  'neg_right:0': neg_right_ae,
                                  'neg2_left:0': neg2_left_ae,
@@ -178,21 +184,24 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
               "{:.5f}".format(l_s))
         # print("Epoch:", '%04d' % epoch, "AE_train_loss=", "{:.5f}".format(l_a))
 
-        # early_stopping
-        if epoch % 10 == 0:
-            continue
+        if (epoch + 1) % 100 == 0:
+            get_all_combine_hits(vecs_se, vecs_ae, Config.beta_list, test)
 
-        if ae_train_flag and epoch > Config.early_stopping \
-                and last_k_loss_ae[-1] > np.mean(last_k_loss_ae[-(Config.early_stopping + 1):-1]):
-            print('AE early stopping...')
-            ae_train_flag = False
-        if se_train_flag and epoch > Config.early_stopping \
-                and last_k_loss_se[-1] > np.mean(last_k_loss_se[-(Config.early_stopping + 1):-1]):
-            print('SE early stopping...')
-            se_train_flag = False
-        if ae_train_flag is False and se_train_flag is False:
-            print("Early stopping...")
-            break
+        # early_stopping
+        # if epoch % 10 == 0:
+        #     continue
+
+        # if ae_train_flag and epoch > Config.early_stopping \
+        #         and last_k_loss_ae[-1] > np.mean(last_k_loss_ae[-(Config.early_stopping + 1):-1]):
+        #     print('AE early stopping...')
+        #     ae_train_flag = False
+        # if se_train_flag and epoch > Config.early_stopping \
+        #         and last_k_loss_se[-1] > np.mean(last_k_loss_se[-(Config.early_stopping + 1):-1]):
+        #     print('SE early stopping...')
+        #     se_train_flag = False
+        # if ae_train_flag is False and se_train_flag is False:
+        #     print("Early stopping...")
+        #     break
 
     vecs_se = sess_se.run(output_layer_se)
     vecs_ae = sess_ae.run(model_ae.outputs, feed_dict=feed_dict_ae)
