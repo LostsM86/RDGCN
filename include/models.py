@@ -119,7 +119,12 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                     = bootstrapping(vecs_se, test, labeled_alignment_se, th[0], boot_K[0])
                 labeled_alignment_ae, ents1_ae, ents2_ae \
                     = bootstrapping(vecs_ae, test, labeled_alignment_ae, th[1], boot_K[1])
-                ents1_se, ents2_se, ents1_ae, ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
+                dep_ents1_se, dep_ents2_se, dep_ents1_ae, dep_ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
+                for i in range(10):
+                    ents1_se.extend(dep_ents1_se)
+                    ents2_se.extend(dep_ents2_se)
+                    ents1_ae.extend(dep_ents1_ae)
+                    ents2_ae.extend(dep_ents2_ae)
                 # print('se find:')
                 # print(len(ents1_se))
                 # print('ae find:')

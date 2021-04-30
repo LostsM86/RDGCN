@@ -241,7 +241,7 @@ def get_weighted_adj(e, kg1, kg2):
         else:
             M[(tri[2], tri[0])] += max(r2f[tri[1]] * r2idf[tri[1]], 0.3)
         M[(tri[0], tri[0])] = r2f[tri[1]]
-        M[(tri[2], tri[2])] = r2f[tri[2]]
+        M[(tri[2], tri[2])] = r2f[tri[1]]
     row = []
     col = []
     data = []
