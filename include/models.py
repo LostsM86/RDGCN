@@ -74,7 +74,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
     # ae feeddict init
     feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
     feed_dict_ae.update({ph_ae['dropout']: Config.dropout})
-    for epoch in range(30):
+    for epoch in range(1):
         if epoch == 0:
             neg2_left_ae = np.random.choice(e, L * ae_neg_K)
             neg_right_ae = np.random.choice(e, L * ae_neg_K)
@@ -119,9 +119,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                     = bootstrapping(vecs_se, test, labeled_alignment_se, th[0], boot_K[0])
                 labeled_alignment_ae, ents1_ae, ents2_ae \
                     = bootstrapping(vecs_ae, test, labeled_alignment_ae, th[1], boot_K[1])
-                # ents1_se, ents2_se, ents1_ae, ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
-                # print(labeled_alignment_se)
-                # print(labeled_alignment_ae)
+                ents1_se, ents2_se, ents1_ae, ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
                 # print('se find:')
                 # print(len(ents1_se))
                 # print('ae find:')
@@ -184,7 +182,7 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
               "{:.5f}".format(l_s))
         # print("Epoch:", '%04d' % epoch, "AE_train_loss=", "{:.5f}".format(l_a))
 
-        if (epoch + 1) % 100 == 0:
+        if (epoch + 1) % 50 == 0:
             get_all_combine_hits(vecs_se, vecs_ae, Config.beta_list, test)
 
         # early_stopping

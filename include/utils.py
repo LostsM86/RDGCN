@@ -240,6 +240,8 @@ def get_weighted_adj(e, kg1, kg2):
             M[(tri[2], tri[0])] = max(r2f[tri[1]] * r2idf[tri[1]], 0.3)
         else:
             M[(tri[2], tri[0])] += max(r2f[tri[1]] * r2idf[tri[1]], 0.3)
+        M[(tri[0], tri[0])] = r2f[tri[1]]
+        M[(tri[2], tri[2])] = r2f[tri[2]]
     row = []
     col = []
     data = []
@@ -248,6 +250,29 @@ def get_weighted_adj(e, kg1, kg2):
         col.append(key[0])
         data.append(M[key])
     return sp.coo_matrix((data, (row, col)), shape=(e, e))
+    # KG = kg1 + kg2
+    # r2f = func(KG)
+    # r2if = ifunc(KG)
+    # M = {}
+    # for tri in KG:
+    #     if tri[0] == tri[2]:
+    #         continue
+    #     if (tri[0], tri[2]) not in M:
+    #         M[(tri[0], tri[2])] = max(r2if[tri[1]], 0.3)
+    #     else:
+    #         M[(tri[0], tri[2])] += max(r2if[tri[1]], 0.3)
+    #     if (tri[2], tri[0]) not in M:
+    #         M[(tri[2], tri[0])] = max(r2f[tri[1]], 0.3)
+    #     else:
+    #         M[(tri[2], tri[0])] += max(r2f[tri[1]], 0.3)
+    # row = []
+    # col = []
+    # data = []
+    # for key in M:
+    #     row.append(key[1])
+    #     col.append(key[0])
+    #     data.append(M[key])
+    # return sp.coo_matrix((data, (row, col)), shape=(e, e))
 
 
 def get_ae_input(attr):

@@ -11,14 +11,15 @@ class Config:
 
 	seed = 3		# 30% of seeds
 	epochs = 2000
-	combine_loss_beta = 0.9		# se_loss的比重
+	combine_loss_beta = 0.8		# se_loss的比重
 	beta_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 	early_stopping = 40		# early stopping
 	# neg_K = 45
 
 	# SE setting
 	dim = 300
-	act_func = tf.nn.relu
+	# act_func = tf.nn.relu
+	act_func = tf.nn.selu
 	alpha = 0.1
 	beta = 0.3
 	gamma = 3.0		# margin based loss of SE
