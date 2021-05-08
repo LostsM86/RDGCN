@@ -115,7 +115,7 @@ class GCN_Align(Model):
                                             output_dim=self.output_dim,
                                             placeholders=self.placeholders,
                                             # act=tf.nn.relu,
-                                            act=tf.nn.selu,
+                                            act=tf.nn.relu,
                                             dropout=False,
                                             featureless=self.featureless,
                                             sparse_inputs=self.sparse_inputs,

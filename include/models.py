@@ -86,9 +86,9 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                              "ILL_right:0": train_right})
         outs_ae = sess_ae.run([model_ae.opt_op, model_ae.loss, model_ae.outputs], feed_dict=feed_dict_ae)
         print("Epoch:", '%04d' % epoch, "AE_train_loss=", "{:.5f}".format(outs_ae[1]))
-        if epoch % 10 == 0:
-            neg_right_ae = get_neg(train_left, all_ent_list[1], train_right, outs_ae[2], ae_neg_K)
-            neg2_left_ae = get_neg(train_right, all_ent_list[0], train_left, outs_ae[2], ae_neg_K)
+        # if epoch % 10 == 0:
+        #     neg_right_ae = get_neg(train_left, all_ent_list[1], train_right, outs_ae[2], ae_neg_K)
+        #     neg2_left_ae = get_neg(train_right, all_ent_list[0], train_left, outs_ae[2], ae_neg_K)
     get_hits(outs_ae[2], test)
 
     align_left_se = train_left
@@ -97,9 +97,11 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
     align_right_ae = train_right
     ae_train_flag = True
     se_train_flag = True
+    vecs_se = sess_se.run(output_layer_se)
+    vecs_ae = outs_ae[2]
     for epoch in range(epochs):
         # get hits & bootstrap
-        if epoch % 10 == 0:
+        if epoch in range(50, epochs, 10):
             if se_train_flag:
                 vecs_se = sess_se.run(output_layer_se)
             if ae_train_flag:
@@ -111,8 +113,10 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
             if ae_train_flag:
                 print('AE')
                 get_hits(vecs_ae, test)
-            print('SE + AE')
+            print('SE + AE 0.8')
             get_combine_hits(vecs_se, vecs_ae, Config.combine_loss_beta, test)
+            print('SE + AE 0.9')
+            get_combine_hits(vecs_se, vecs_ae, 0.9, test)
 
             if se_train_flag & ae_train_flag:
                 labeled_alignment_se, ents1_se, ents2_se \
@@ -120,7 +124,9 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                 labeled_alignment_ae, ents1_ae, ents2_ae \
                     = bootstrapping(vecs_ae, test, labeled_alignment_ae, th[1], boot_K[1])
                 dep_ents1_se, dep_ents2_se, dep_ents1_ae, dep_ents2_ae = del_duplicate(ents1_se, ents2_se, ents1_ae, ents2_ae)
-                for i in range(10):
+                clear_ents1_se = ents1_se
+                clear_ents2_se = ents2_se
+                for i in range(5):
                     ents1_se.extend(dep_ents1_se)
                     ents2_se.extend(dep_ents2_se)
                     ents1_ae.extend(dep_ents1_ae)
@@ -130,15 +136,19 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
                 # print('ae find:')
                 # print(len(ents1_ae))
             if ents1_se != []:
+                align_left_ae = np.append(train_left, np.array(clear_ents1_se))
+                align_right_ae = np.append(train_right, np.array(clear_ents2_se))
+                ae_input, support = get_new_all_ae_data(e, base_attr, base_KG, align_left_ae, align_right_ae)
                 align_left_ae = np.append(train_left, np.array(ents1_se))
                 align_right_ae = np.append(train_right, np.array(ents2_se))
-                ae_input, support = get_new_all_ae_data(e, base_attr, base_KG, align_left_ae, align_right_ae)
                 feed_dict_ae = construct_feed_dict(ae_input, support, ph_ae)
                 feed_dict_ae.update({ph_ae['dropout']: Config.dropout})
+                print('align_ae:', len(align_left_ae))
 
             if ents1_ae != []:
                 align_left_se = np.append(train_left, np.array(ents1_ae))
                 align_right_se = np.append(train_right, np.array(ents2_ae))
+                print('align_se:', len(align_left_se))
 
         # get outvec & get neg & train SE
         if se_train_flag:
@@ -151,7 +161,6 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
             neg_right_se = get_neg(align_left_se, all_ent_list[1], align_right_se, vecs_se, se_neg_K)
             neg2_left_se = get_neg(align_right_se, all_ent_list[0], align_left_se, vecs_se, se_neg_K)
 
-            print('align_se:', len(align_left_se))
             feed_dict_se = {"neg_left:0": neg_left_se,
                             "neg_right:0": neg_right_se,
                             "neg2_left:0": neg2_left_se,
@@ -163,16 +172,15 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
 
         # get neg & train AE
         if ae_train_flag:
-            if epoch % 10 == 0:
-                L = len(align_left_ae)
-                neg_left_ae = (np.ones((L, ae_neg_K), dtype=int) * (align_left_ae.reshape((L, 1)))).reshape(
-                    (L * ae_neg_K,))
-                neg2_right_ae = (np.ones((L, ae_neg_K), dtype=int) * (align_right_ae.reshape((L, 1)))).reshape(
-                    (L * ae_neg_K,))
-                neg_right_ae = get_neg(align_left_ae, all_ent_list[1], align_right_ae, vecs_ae, ae_neg_K)
-                neg2_left_ae = get_neg(align_right_ae, all_ent_list[0], align_left_ae, vecs_ae, ae_neg_K)
+            # if epoch % 10 == 0:
+            L = len(align_left_ae)
+            neg_left_ae = (np.ones((L, ae_neg_K), dtype=int) * (align_left_ae.reshape((L, 1)))).reshape(
+                (L * ae_neg_K,))
+            neg2_right_ae = (np.ones((L, ae_neg_K), dtype=int) * (align_right_ae.reshape((L, 1)))).reshape(
+               (L * ae_neg_K,))
+            neg_right_ae = get_neg(align_left_ae, all_ent_list[1], align_right_ae, vecs_ae, ae_neg_K)
+            neg2_left_ae = get_neg(align_right_ae, all_ent_list[0], align_left_ae, vecs_ae, ae_neg_K)
 
-            print('align_ae:', len(align_left_ae))
             feed_dict_ae.update({'neg_left:0': neg_left_ae,
                                  'neg_right:0': neg_right_ae,
                                  'neg2_left:0': neg2_left_ae,
@@ -187,8 +195,8 @@ def training(sess_se, output_layer_se, loss_se, op_se, se_neg_K,
               "{:.5f}".format(l_s))
         # print("Epoch:", '%04d' % epoch, "AE_train_loss=", "{:.5f}".format(l_a))
 
-        if (epoch + 1) % 50 == 0:
-            get_all_combine_hits(vecs_se, vecs_ae, Config.beta_list, test)
+        # if (epoch + 1) % 50 == 0:
+        #     get_all_combine_hits(vecs_se, vecs_ae, Config.beta_list, test)
 
         # early_stopping
         # if epoch % 10 == 0:

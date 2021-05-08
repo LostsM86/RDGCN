@@ -93,8 +93,13 @@ def search_nearest_k(sim_mat, k):
         rank = np.argpartition(-sim_mat[i, :], k)
         pairs = [j for j in itertools.product([i], rank[0:k])]
         neighbors |= set(pairs)
+    for j in range(sim_mat.shape[1]):
+        # 前 k 大的下标
+        rank = np.argpartition(-sim_mat[:, j], k)
+        pairs = [i for i in itertools.product(rank[0:k], [j])]
+        neighbors |= set(pairs)
         # del rank
-    assert len(neighbors) == ref_num * k
+    # assert len(neighbors) == ref_num * k + sim_mat.shape[1] * k
     return neighbors
 
 
