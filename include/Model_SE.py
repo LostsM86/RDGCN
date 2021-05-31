@@ -261,9 +261,8 @@ def build(learning_rate, dimension, act_func, alpha, beta, gamma, k, lang, e, KG
         # learning_rate = tf.train.exponential_decay(learning_rate, global_step, 10, 0.96, False)
         # train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step)
         train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
-
         init = tf.global_variables_initializer()
-        sess = tf.Session(graph=graph)
+        sess = tf.Session()
         sess.run(init)
 
     return sess, train_step, output_layer, loss

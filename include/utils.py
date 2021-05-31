@@ -77,6 +77,20 @@ def chebyshev_polynomials(adj, k):
     return sparse_to_tuple(t_k)
 
 
+def get_relation_num(kg1, kg2):
+    rela = set()
+    with open(kg1, encoding='utf-8') as f:
+        for line in f:
+            tr = line[:-1].split('\t')
+            rela.add(tr[1])
+    with open(kg2, encoding='utf-8') as f:
+        for line in f:
+            tr = line[:-1].split('\t')
+            rela.add(tr[1])
+
+    return len(rela)
+
+
 def loadfile(fn, num=1):
     """Load a file and return a list of tuple containing $num integers in each line."""
     print('loading a file...' + fn)
@@ -213,7 +227,7 @@ def idf_func(kg1, kg2):
             t2[tri[1]] += 1
     for r in t2:
         r2idf[r] = math.log(l2 / (1 + t2[r]), 10)
-    
+
     min_idf = min(r2idf.values())
     max_idf = max(r2idf.values())
 
@@ -222,11 +236,53 @@ def idf_func(kg1, kg2):
     return r2idf
 
 
+# def tf_idf(e, kg):
+#     relaion_set = set()
+#     for tri in kg:
+#         relaion_set.add(tri[1])
+#     r = len(relaion_set)
+#     ent_relation = [[0 for i in range(r)] for j in range(e)]
+#     for tri in kg:
+#         ent_relation[tri[0]][tri[1]] += 1
+#
+#
+#     r2idf = {}
+#     l1 = len(kg1)
+#     ent_relation = [0 for i in range(e)]
+#     t1 = {}     # r: 次数
+#     for tri in kg1:
+#         ent_relation[tri[0]] += 1
+#         if tri[1] not in t1:
+#             t1[tri[1]] = 1
+#         else:
+#             t1[tri[1]] += 1
+#     for r in t1:
+#         r2idf[r] = math.log(l1 / (1 + t1[r]), 10)
+#     l2 = len(kg1)
+#     t2 = {}
+#     for tri in kg2:
+#         ent_relation[tri[0]] += 1
+#         if tri[1] not in t2:
+#             t2[tri[1]] = 1
+#         else:
+#             t2[tri[1]] += 1
+#     for r in t2:
+#         r2idf[r] = math.log(l2 / (1 + t2[r]), 10)
+#
+#     min_idf = min(r2idf.values())
+#     max_idf = max(r2idf.values())
+#
+#     for r in r2idf:
+#         r2idf[r] = (r2idf[r] - min_idf) / (max_idf - min_idf)
+#     return r2idf
+
+
 def get_weighted_adj(e, kg1, kg2):
     KG = kg1 + kg2
     r2f = func(KG)
     r2if = ifunc(KG)
     r2idf = idf_func(kg1, kg2)
+    # r2tf_idf = tf_idf(e, KG)
     M = {}
     for tri in KG:
         # todo(zyj) 转成自环图
@@ -432,11 +488,25 @@ def get_neg(ILL, cand_ent_list, other_ILL, output_layer, k):
     sim = scipy.spatial.distance.cdist(ILL_vec, cand_ent_vec, metric='cityblock')
     for i in range(t):
         rank = sim[i, :].argsort()
-        for j in rank[0:k+1]:
+        for j in rank[1:k+2]:
             if cand_ent_list[j] != other_ILL[i]:
                 neg.append(cand_ent_list[j])
         if len(neg) == (i + 1) * k + 1:
             neg = neg[:-1]
+    neg = np.array(neg)
+    neg = neg.reshape((t * k,))
+    return neg
+
+def get_neg2(ILL, output_layer, k):
+    neg = []
+    t = len(ILL)
+    ILL_vec = np.array([output_layer[e1] for e1 in ILL])
+    KG_vec = np.array(output_layer)
+    sim = scipy.spatial.distance.cdist(ILL_vec, KG_vec, metric='cityblock')
+    for i in range(t):
+        rank = sim[i, :].argsort()
+        neg.append(rank[0:k])
+
     neg = np.array(neg)
     neg = neg.reshape((t * k,))
     return neg
@@ -487,6 +557,11 @@ def del_duplicate(ents1_s, ents2_s, ents1_a, ents2_a):
     for e1, e2 in clear_se_list:
         ents1_se.append(e1)
         ents2_se.append(e2)
+
+    del ents_se_list
+    del ents_ae_list
+    del clear_se_list
+    del clear_ae_list
     return ents1_se, ents2_se, ents1_ae, ents2_ae
 
 

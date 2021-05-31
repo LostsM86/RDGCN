@@ -2,7 +2,7 @@ import tensorflow as tf
 
 
 class Config:
-	language = 'fr_en'		# zh_en | ja_en | fr_en
+	language = 'zh_en'		# zh_en | ja_en | fr_en
 	e1 = 'data/' + language + '/ent_ids_1'
 	e2 = 'data/' + language + '/ent_ids_2'
 	ill = 'data/' + language + '/ref_ent_ids'
@@ -10,9 +10,9 @@ class Config:
 	kg2 = 'data/' + language + '/triples_2'
 
 	seed = 3		# 30% of seeds
-	epochs = 1000
+	epochs = 500
 	combine_loss_beta = 0.8		# se_loss的比重
-	beta_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+	beta_list = [0.7, 0.8, 0.9, 0.92, 0.95, 0.98]
 	early_stopping = 40		# early stopping
 	# neg_K = 45
 
@@ -22,10 +22,10 @@ class Config:
 	act_func = tf.nn.relu
 	alpha = 0.1
 	beta = 0.3
-	gamma = 3.0		# margin based loss of SE
+	gamma = 1.0		# margin based loss of SE
 	# se_learning_rate = 0.001
 	se_learning_rate = 0.001
-	se_neg_K = 145  # number of negative samples for each positive one of SE
+	se_neg_K = 125  # number of negative samples for each positive one of SE
 
 	# AE setting
 	dropout = 0.		# Dropout rate (1 - keep probability)
@@ -35,6 +35,7 @@ class Config:
 	ae_learning_rate = 0.1		# Initial learning rate of AE
 
 	# bootstrap setting
-	# th = [0.4, 0.65]		# Threshold of [SE, AE]
-	th = [0.3, 0.5]
-	boot_K = [20, 50]		# 取boot_K对作为输入到二分图的结果
+	# th = [0.3, 0.65]		# Threshold of [SE, AE]
+	# th = [0.25, 0.6]
+	th = [0.25, 0.62]
+	boot_K = [40, 50]		# 取boot_K对作为输入到二分图的结果

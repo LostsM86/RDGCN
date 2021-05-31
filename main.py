@@ -16,6 +16,8 @@ if __name__ == '__main__':
     # load data: e(实体数) + train + (kg1 + kg2)
     e = len(set(loadfile(Config.e1, 1)) | set(loadfile(Config.e2, 1)))
 
+    r = get_relation_num(Config.kg1, Config.kg2)
+
     ILL = loadfile(Config.ill, 2)
     illL = len(ILL)
     # np.random.shuffle(ILL)
@@ -42,4 +44,5 @@ if __name__ == '__main__':
     training(sess_se, output_layer_se, loss_se, op_se, Config.se_neg_K,
              sess_ae, model_ae, ae_input, support, ph_ae, Config.ae_neg_K, all_attr, [all_KG1, all_KG2],
              e, Config.epochs, train, test, [all_ent1_list, all_ent2_list],
-             Config.th, Config.boot_K)
+             Config.th, Config.boot_K,
+             r)
